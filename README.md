@@ -541,3 +541,154 @@ docker-compose up
   - สามารถ mount โฟลเดอร์ด้วย volumes เพื่อ hot reload ได้
 - หากพบปัญหาเกี่ยวกับ permission ของไฟล์ฐานข้อมูล (เช่น SQLite) ให้ตรวจสอบสิทธิ์ของโฟลเดอร์ที่ mount
 - แนะนำให้สำรองข้อมูลฐานข้อมูลเป็นประจำ
+
+## 🐘 การใช้งาน PostgreSQL ใน Docker (ละเอียด)
+
+1. **docker-compose.yml**
+```yaml
+version: "3.8"
+services:
+  postgres:
+    image: postgres:15
+    container_name: chemo-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: chemo_db
+      POSTGRES_USER: chemo_user
+      POSTGRES_PASSWORD: chemo_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - postgres
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+
+volumes:
+  pg_data:
+```
+
+2. **.env (backend/.env)**
+```env
+DATABASE_URL="postgresql://chemo_user:chemo_pass@postgres:5432/chemo_db"
+JWT_SECRET="your-secret-key-here"
+PORT=5000
+```
+
+3. **schema.prisma**
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+4. **ขั้นตอนการใช้งาน**
+- สร้าง/แก้ไขไฟล์ตามตัวอย่าง
+- `docker-compose build`
+- `docker-compose up`
+- รอ postgres พร้อม
+- migrate schema:
+  ```bash
+  docker-compose exec backend npx prisma migrate dev --name init
+  ```
+
+5. **หมายเหตุ**
+- PostgreSQL รองรับ transaction, relation, performance สูง เหมาะกับ production
+- ข้อมูลเก็บใน volume `pg_data` สำรอง/ย้ายง่าย
+- ใช้ image `postgres:15` ได้ทั้ง x86/ARM (Raspberry Pi)
+
+---
+
+## 🟦 การใช้งาน SQLite ใน Docker (ละเอียด)
+
+1. **docker-compose.yml**
+```yaml
+version: "3.8"
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+```
+
+2. **.env (backend/.env)**
+```env
+DATABASE_URL="file:./dev.db"
+JWT_SECRET="your-secret-key-here"
+PORT=5000
+```
+
+3. **schema.prisma**
+```prisma
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+```
+
+4. **ขั้นตอนการใช้งาน**
+- สร้าง/แก้ไขไฟล์ตามตัวอย่าง
+- `docker-compose build`
+- `docker-compose up`
+- migrate schema:
+  ```bash
+  docker-compose exec backend npx prisma migrate dev --name init
+  ```
+- ข้อมูลเก็บในไฟล์ `backend/dev.db` (mount volume ไว้สำรอง/ย้ายได้)
+
+5. **หมายเหตุ**
+- SQLite เหมาะกับ dev/test หรือ production ขนาดเล็ก
+- ไม่เหมาะกับ concurrent write เยอะๆ หรือระบบที่ต้อง scale
+- ใช้งานง่าย ไม่ต้องตั้งค่า service database
+
+---
+
+## 🔎 เปรียบเทียบความแตกต่าง PostgreSQL, MySQL, SQLite
+
+| คุณสมบัติ         | PostgreSQL                | MySQL                    | SQLite                   |
+|-------------------|---------------------------|--------------------------|--------------------------|
+| ประเภท            | RDBMS (Server)            | RDBMS (Server)           | Embedded DB (File)       |
+| เหมาะกับ          | Production, scale สูง     | Production, scale สูง    | Dev, test, scale เล็ก    |
+| การติดตั้ง        | ต้องมี service database   | ต้องมี service database  | ไม่ต้องมี service db     |
+| การสำรอง/ย้าย    | ใช้ volume, dump ได้      | ใช้ volume, dump ได้     | copy ไฟล์ .db ได้เลย     |
+| Performance       | สูง, รองรับ transaction   | สูง, รองรับ transaction  | ดีสำหรับงานเล็ก/กลาง    |
+| ขนาดข้อมูล        | ใหญ่, scale ได้           | ใหญ่, scale ได้          | เล็ก, scale ไม่ดี        |
+| ใช้กับ Docker     | ต้องเพิ่ม service db      | ต้องเพิ่ม service db     | ไม่ต้องเพิ่ม service db  |
+| ARM/Raspberry Pi  | รองรับดี                  | รองรับดี                 | รองรับดี                 |
+| Prisma support    | ดี                        | ดี                       | ดี                       |
+
+**สรุป:**
+- **PostgreSQL**: เหมาะกับ production, ข้อมูลเยอะ, ต้องการความเสถียร, scale ได้ดี
+- **MySQL**: เหมาะกับ production, ใช้งานแพร่หลาย, scale ได้ดี
+- **SQLite**: เหมาะกับ dev/test, ระบบขนาดเล็ก, ใช้งานง่าย, ไม่ต้องตั้งค่า server
