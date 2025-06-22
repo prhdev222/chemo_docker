@@ -32,13 +32,13 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="login-form">
           {error && <p className="error-message">{error}</p>}
           <div className="input-group">
-            <label htmlFor="hn">HN หรือ Username</label>
+            <label htmlFor="hn">Username หรือ Email</label>
             <input
               type="text"
               id="hn"
               value={hn}
               onChange={(e) => setHn(e.target.value)}
-              placeholder="กรอก HN หรือ Username"
+              placeholder="กรอก Username หรือ Email"
               required
             />
           </div>
