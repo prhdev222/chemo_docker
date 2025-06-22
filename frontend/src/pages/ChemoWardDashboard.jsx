@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { FiLink, FiUsers, FiCalendar, FiEdit } from 'react-icons/fi';
+import '../styles/dashboard.css';
+import '../styles/common.css';
 
 // I will reuse the existing Modal component from the original file if it exists,
 // assuming it's still needed for rescheduling.
@@ -127,7 +129,7 @@ export default function ChemoWardDashboard() {
     if (error) return <p>Error: {error}</p>;
 
     const today = new Date();
-    const waitingAppointments = appointments.filter(a => a.admitStatus === 'waiting' || (a.admitStatus === 'missed' && new Date(a.date).toDateString() === today.toDateString()));
+    const waitingAppointments = appointments.filter(a => a.admitStatus === 'waiting');
     const admittedPatients = appointments.filter(a => a.admitStatus === 'admit');
 
     return (

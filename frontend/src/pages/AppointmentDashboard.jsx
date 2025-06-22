@@ -5,7 +5,8 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { FaEdit, FaTrash, FaPlus, FaFilePdf, FaFileExcel, FaTimes, FaCheckCircle } from 'react-icons/fa';
 import '../THSarabunNew-normal.js';
-import './AppointmentDashboard.css';
+import '../styles/dashboard.css';
+import '../styles/common.css';
 
 const API_URL = 'http://localhost:3001/api';
 
@@ -75,7 +76,15 @@ const AppointmentForm = ({ onSubmit, onCancel, patients, initialData }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSubmit(formData);
+        // ถ้าเป็น followup ไม่ต้องส่ง chemoRegimen
+        const data = { ...formData };
+        if (data.admitStatus === 'followup') {
+            data.chemoRegimen = '';
+        }
+        if (data.admitStatus === 'waiting') {
+            data.note = '';
+        }
+        onSubmit(data);
     };
 
     return (
@@ -92,19 +101,24 @@ const AppointmentForm = ({ onSubmit, onCancel, patients, initialData }) => {
                 <input type="datetime-local" name="date" value={formData.date} onChange={handleChange} required />
             </div>
             <div className="form-group">
-                <label>Chemo Regimen:</label>
-                <input type="text" name="chemoRegimen" value={formData.chemoRegimen} onChange={handleChange} required placeholder="เช่น R-CHOP" />
-            </div>
-            <div className="form-group">
                 <label>สถานะเริ่มต้น:</label>
-                <select name="admitStatus" value={formData.admitStatus} onChange={handleChange} disabled>
-                    <option value="waiting">Waiting</option>
+                <select name="admitStatus" value={formData.admitStatus} onChange={handleChange} required>
+                    <option value="waiting">Waiting (รอนัดให้ยาเคมีบำบัด)</option>
+                    <option value="followup">Follow up OPD</option>
                 </select>
             </div>
-            <div className="form-group">
-                <label>หมายเหตุ:</label>
-                <textarea name="note" value={formData.note} onChange={handleChange}></textarea>
-            </div>
+            {formData.admitStatus === 'waiting' && (
+                <div className="form-group">
+                    <label>Chemo Regimen:</label>
+                    <input type="text" name="chemoRegimen" value={formData.chemoRegimen} onChange={handleChange} required placeholder="เช่น R-CHOP" />
+                </div>
+            )}
+            {formData.admitStatus === 'followup' && (
+                <div className="form-group">
+                    <label>Note การวางแผน follow up:</label>
+                    <textarea name="note" value={formData.note} onChange={handleChange} required placeholder="รายละเอียดการ follow up" />
+                </div>
+            )}
             <div className="form-actions">
                 <button type="button" onClick={onCancel} className="btn-secondary">ยกเลิก</button>
                 <button type="submit" className="btn-primary">บันทึก</button>
@@ -121,6 +135,7 @@ export default function AppointmentDashboard() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAppointment, setEditingAppointment] = useState(null);
     const { token, user } = useContext(AuthContext);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const fetchAppointments = useCallback(async () => {
         setLoading(true);
@@ -130,7 +145,7 @@ export default function AppointmentDashboard() {
             });
             if (!response.ok) throw new Error('Failed to fetch appointments');
             const data = await response.json();
-            setAppointments(Array.isArray(data) ? data.filter(a => a.admitStatus === 'waiting' || a.admitStatus === 'rescheduled' || a.admitStatus === 'missed') : []);
+            setAppointments(Array.isArray(data) ? data.filter(a => a.admitStatus === 'waiting' || a.admitStatus === 'rescheduled' || a.admitStatus === 'missed' || a.admitStatus === 'followup') : []);
         } catch (error) {
             console.error('Error fetching appointments:', error);
         } finally {
@@ -265,6 +280,13 @@ export default function AppointmentDashboard() {
         XLSX.writeFile(workbook, 'appointments.xlsx');
     };
 
+    // Filtered appointments
+    const filteredAppointments = appointments.filter(app => {
+        const hn = app.patient?.hn?.toLowerCase() || '';
+        const name = `${app.patient?.firstName || ''} ${app.patient?.lastName || ''}`.toLowerCase();
+        return hn.includes(searchTerm.toLowerCase()) || name.includes(searchTerm.toLowerCase());
+    });
+
     return (
         <div className="appointment-dashboard-container">
             <div className="page-header">
@@ -278,6 +300,15 @@ export default function AppointmentDashboard() {
 
             <div className="content-card">
                 <div className="card-body">
+                    <div className="form-group" style={{ maxWidth: 320, marginBottom: 16 }}>
+                        <input
+                            type="text"
+                            placeholder="ค้นหา HN หรือชื่อผู้ป่วย..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            style={{ width: '100%' }}
+                        />
+                    </div>
                     <table className="patient-table">
                         <thead>
                             <tr>
@@ -292,8 +323,8 @@ export default function AppointmentDashboard() {
                         <tbody>
                             {loading ? (
                                 <tr><td colSpan="6" style={{textAlign: 'center'}}>Loading...</td></tr>
-                            ) : appointments.length > 0 ? (
-                                appointments.map(app => (
+                            ) : filteredAppointments.length > 0 ? (
+                                filteredAppointments.map(app => (
                                     <tr key={app.id}>
                                         <td>{app.patient?.hn || 'N/A'}</td>
                                         <td>{app.patient ? `${app.patient.firstName} ${app.patient.lastName}` : 'N/A'}</td>

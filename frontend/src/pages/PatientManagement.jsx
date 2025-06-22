@@ -4,7 +4,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import '../THSarabunNew-normal.js';
-import './PatientManagement.css';
+import '../styles/patient.css';
+import '../styles/common.css';
+import { FaPlus, FaFilePdf, FaFileExcel } from 'react-icons/fa';
 
 // --- Modal Component ---
 const Modal = ({ children, onClose }) => {
@@ -174,6 +176,9 @@ export default function PatientManagement() {
     const [showModal, setShowModal] = useState(false);
     const [editingPatient, setEditingPatient] = useState(null);
     const [statusFilter, setStatusFilter] = useState('All');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [searchDiagnosis, setSearchDiagnosis] = useState('');
+    const [searchDiagnosisGroup, setSearchDiagnosisGroup] = useState('');
     const { user, token } = useContext(AuthContext);
 
     const canManagePatients = user?.role === 'ADMIN' || user?.role === 'DOCTOR' || user?.role === 'NURSE';
@@ -314,9 +319,19 @@ export default function PatientManagement() {
         }
     };
 
-    const filteredPatients = statusFilter === 'All'
-        ? patients
-        : patients.filter(p => p.status === statusFilter);
+    // Filtered patients by status, search term, diagnosis, and diagnosis group
+    const filteredPatients = (statusFilter === 'All' ? patients : patients.filter(p => p.status === statusFilter))
+        .filter(p => {
+            const hn = p.hn?.toLowerCase() || '';
+            const name = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+            const diagnosis = (p.diagnosis || '').toLowerCase();
+            const group = p.treatmentPlan?.diagnosisGroup || '';
+            return (
+                (hn.includes(searchTerm.toLowerCase()) || name.includes(searchTerm.toLowerCase())) &&
+                diagnosis.includes(searchDiagnosis.toLowerCase()) &&
+                (searchDiagnosisGroup === '' || group === searchDiagnosisGroup)
+            );
+        });
 
     if (!canManagePatients) {
         return <h2>คุณไม่มีสิทธิ์เข้าถึงหน้านี้</h2>;
@@ -328,10 +343,10 @@ export default function PatientManagement() {
                 <h1>จัดการข้อมูลผู้ป่วย</h1>
                 <div className="header-actions">
                     <button onClick={handleAddNew} className="btn-add-new">
-                        เพิ่มผู้ป่วยใหม่
+                        <FaPlus style={{ marginRight: 6 }} /> เพิ่มผู้ป่วยใหม่
                     </button>
-                    <button onClick={exportPDF} className="btn-export">Export PDF</button>
-                    <button onClick={exportExcel} className="btn-export">Export Excel</button>
+                    <button onClick={exportPDF} className="btn-export"><FaFilePdf style={{ marginRight: 6 }} /> Export PDF</button>
+                    <button onClick={exportExcel} className="btn-export"><FaFileExcel style={{ marginRight: 6 }} /> Export Excel</button>
                 </div>
             </div>
 
@@ -346,6 +361,44 @@ export default function PatientManagement() {
                             <option value="DECEASED">Deceased</option>
                         </select>
                     </div>
+                    <div className="form-group" style={{ maxWidth: 320, marginBottom: 0, marginLeft: 16 }}>
+                        <input
+                            type="text"
+                            placeholder="ค้นหา HN หรือชื่อผู้ป่วย..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+                    <div className="form-group" style={{ maxWidth: 320, marginBottom: 0, marginLeft: 16 }}>
+                        <input
+                            type="text"
+                            placeholder="ค้นหา Diagnosis..."
+                            value={searchDiagnosis}
+                            onChange={e => setSearchDiagnosis(e.target.value)}
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+                    <div className="form-group" style={{ maxWidth: 320, marginBottom: 0, marginLeft: 16 }}>
+                        <select
+                            value={searchDiagnosisGroup}
+                            onChange={e => setSearchDiagnosisGroup(e.target.value)}
+                            style={{ width: '100%' }}
+                        >
+                            <option value="">ค้นหากลุ่มการวินิจฉัย...</option>
+                            <option value="indolent">Low grade (Indolent) lymphoma</option>
+                            <option value="cll">Chronic lymphocytic leukemia</option>
+                            <option value="aggressive">High grade (aggressive) lymphoma</option>
+                            <option value="plasma">Plasma cell neoplasm</option>
+                            <option value="mds">MDS</option>
+                            <option value="mpnmds">MPN/MDS</option>
+                            <option value="mpn">MPN</option>
+                            <option value="cml">CML</option>
+                            <option value="acute">Acute leukemia</option>
+                            <option value="otherhemo">Other hematologic disease</option>
+                            <option value="other">Other...</option>
+                        </select>
+                    </div>
                 </div>
                 <div className="card-body">
                     <table className="patient-table">
@@ -353,6 +406,8 @@ export default function PatientManagement() {
                             <tr>
                                 <th>HN</th>
                                 <th>ชื่อ-นามสกุล</th>
+                                <th>Diagnosis</th>
+                                <th>แผนการรักษา</th>
                                 <th>อายุ</th>
                                 <th>เบอร์โทร</th>
                                 <th>สถานะ</th>
@@ -361,12 +416,23 @@ export default function PatientManagement() {
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan="6">Loading...</td></tr>
+                                <tr><td colSpan="8">Loading...</td></tr>
                             ) : filteredPatients.length > 0 ? (
                                 filteredPatients.map(patient => (
                                     <tr key={patient.id}>
                                         <td>{patient.hn}</td>
                                         <td>{patient.firstName} {patient.lastName}</td>
+                                        <td>{patient.diagnosis || '-'}</td>
+                                        <td>{(() => {
+                                            const s = patient.treatmentPlan?.currentStatus;
+                                            if (s === 'first') return 'First treatment';
+                                            if (s === 'cr') return 'Complete remission (CR)';
+                                            if (s === 'pr') return 'Partial remission (PR)';
+                                            if (s === 'relapsed') return `Relapsed${patient.treatmentPlan?.relapsedNumber ? `: ${patient.treatmentPlan.relapsedNumber}` : ''}`;
+                                            if (s === 'refractory') return 'Refractory/Progression disease';
+                                            if (s === 'palliative') return 'Palliative care';
+                                            return '-';
+                                        })()}</td>
                                         <td>{calculateAge(patient.birthDate)}</td>
                                         <td>{patient.phone || '-'}</td>
                                         <td><PatientStatusBadge status={patient.status} /></td>
@@ -377,7 +443,7 @@ export default function PatientManagement() {
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan="6">ไม่พบข้อมูลผู้ป่วย</td></tr>
+                                <tr><td colSpan="8">ไม่พบข้อมูลผู้ป่วย</td></tr>
                             )}
                         </tbody>
                     </table>

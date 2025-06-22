@@ -4,7 +4,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import '../THSarabunNew-normal.js';
-import './PatientManagement.css'; // Reuse styles
+import '../styles/treatment.css';
+import '../styles/common.css';
 import { FaUserMd, FaStethoscope, FaCalendarAlt, FaFileMedicalAlt, FaSearch } from 'react-icons/fa';
 
 const API_BASE_URL = 'http://localhost:3001';
@@ -67,7 +68,7 @@ const TreatmentForm = ({ patient, onSave, onCancel, onAttachmentDelete }) => {
         diagnosisDate: '',
         stage: '',
         prognosis: '',
-        treatmentPlan: { details: '' }
+        treatmentPlan: { details: '', currentStatus: '', relapsedNumber: '', diagnosisGroup: '' }
     });
     const [newAttachments, setNewAttachments] = useState([]); // { file: File, displayName: string }[]
 
@@ -78,9 +79,14 @@ const TreatmentForm = ({ patient, onSave, onCancel, onAttachmentDelete }) => {
                 diagnosisDate: patient.diagnosisDate ? patient.diagnosisDate.split('T')[0] : '',
                 stage: patient.stage || '',
                 prognosis: patient.prognosis || '',
-                treatmentPlan: patient.treatmentPlan && patient.treatmentPlan.details 
-                    ? patient.treatmentPlan 
-                    : { details: '' }
+                treatmentPlan: patient.treatmentPlan && patient.treatmentPlan.details
+                    ? {
+                        details: patient.treatmentPlan.details || '',
+                        currentStatus: patient.treatmentPlan.currentStatus || '',
+                        relapsedNumber: patient.treatmentPlan.relapsedNumber || '',
+                        diagnosisGroup: patient.treatmentPlan.diagnosisGroup || ''
+                    }
+                    : { details: '', currentStatus: '', relapsedNumber: '', diagnosisGroup: '' }
             });
             setNewAttachments([]); // Clear new attachments when patient changes
         }
@@ -89,7 +95,13 @@ const TreatmentForm = ({ patient, onSave, onCancel, onAttachmentDelete }) => {
     const handleChange = (e) => {
         const { name, value } = e.target;
         if (name === 'treatmentPlanDetails') {
-            setFormData(prev => ({ ...prev, treatmentPlan: { details: value } }));
+            setFormData(prev => ({ ...prev, treatmentPlan: { ...prev.treatmentPlan, details: value } }));
+        } else if (name === 'currentStatus') {
+            setFormData(prev => ({ ...prev, treatmentPlan: { ...prev.treatmentPlan, currentStatus: value, relapsedNumber: '' } }));
+        } else if (name === 'relapsedNumber') {
+            setFormData(prev => ({ ...prev, treatmentPlan: { ...prev.treatmentPlan, relapsedNumber: value } }));
+        } else if (name === 'diagnosisGroup') {
+            setFormData(prev => ({ ...prev, treatmentPlan: { ...prev.treatmentPlan, diagnosisGroup: value } }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
@@ -141,7 +153,24 @@ const TreatmentForm = ({ patient, onSave, onCancel, onAttachmentDelete }) => {
                 <input name="stage" value={formData.stage} onChange={handleChange} placeholder="Stage *" required />
                 <input name="prognosis" value={formData.prognosis} onChange={handleChange} placeholder="Prognosis" />
             </div>
-            
+            <div className="form-group full-width">
+                <label>สรุปสถานะการรักษาในปัจจุบัน:</label>
+                <select name="currentStatus" value={formData.treatmentPlan.currentStatus} onChange={handleChange} required>
+                    <option value="">-- เลือกสถานะ --</option>
+                    <option value="first">First treatment</option>
+                    <option value="cr">Complete remission (CR)</option>
+                    <option value="pr">Partial remission (PR)</option>
+                    <option value="relapsed">Relapsed</option>
+                    <option value="refractory">Refractory/Progression disease</option>
+                    <option value="palliative">Palliative care</option>
+                </select>
+            </div>
+            {formData.treatmentPlan.currentStatus === 'relapsed' && (
+                <div className="form-group full-width">
+                    <label>Relapsed ครั้งที่:</label>
+                    <input name="relapsedNumber" value={formData.treatmentPlan.relapsedNumber} onChange={handleChange} placeholder="เช่น 1st, 2nd, 3rd" required />
+                </div>
+            )}
             <div className="form-group full-width">
                  <label>รายละเอียดแผนการรักษา:</label>
                  <textarea 
@@ -150,6 +179,28 @@ const TreatmentForm = ({ patient, onSave, onCancel, onAttachmentDelete }) => {
                      onChange={handleChange} 
                      placeholder="รายละเอียดแผนการรักษา" 
                  />
+            </div>
+            <div className="form-group full-width">
+                <label>กลุ่มการวินิจฉัย:</label>
+                <select
+                    name="diagnosisGroup"
+                    value={formData.treatmentPlan.diagnosisGroup}
+                    onChange={handleChange}
+                    required
+                >
+                    <option value="">-- เลือกกลุ่ม --</option>
+                    <option value="indolent">Low grade (Indolent) lymphoma</option>
+                    <option value="cll">Chronic lymphocytic leukemia</option>
+                    <option value="aggressive">High grade (aggressive) lymphoma</option>
+                    <option value="plasma">Plasma cell neoplasm</option>
+                    <option value="mds">MDS</option>
+                    <option value="mpnmds">MPN/MDS</option>
+                    <option value="mpn">MPN</option>
+                    <option value="cml">CML</option>
+                    <option value="acute">Acute leukemia</option>
+                    <option value="otherhemo">Other hematologic disease</option>
+                    <option value="other">Other...</option>
+                </select>
             </div>
 
             <AttachmentManager 
@@ -178,6 +229,10 @@ export default function TreatmentPage() {
     
     const canView = user?.role === 'ADMIN' || user?.role === 'DOCTOR' || user?.role === 'NURSE';
     const canManage = user?.role === 'ADMIN' || user?.role === 'DOCTOR';
+
+    const [isFullScreenModalOpen, setIsFullScreenModalOpen] = useState(false);
+    const [isFullScreenEdit, setIsFullScreenEdit] = useState(false);
+    const [fullScreenEditValue, setFullScreenEditValue] = useState('');
 
     useEffect(() => {
         if (canView) {
@@ -396,6 +451,31 @@ export default function TreatmentPage() {
                                     <div className="detail-item"><strong>วันที่วินิจฉัย:</strong> <span>{selectedPatient.diagnosisDate ? new Date(selectedPatient.diagnosisDate).toLocaleDateString('th-TH') : '-'}</span></div>
                                     <div className="detail-item"><strong>Stage:</strong> <span>{selectedPatient.stage || '-'}</span></div>
                                     <div className="detail-item"><strong>Prognosis:</strong> <span>{selectedPatient.prognosis || '-'}</span></div>
+                                    <div className="detail-item"><strong>สรุปสถานะการรักษา:</strong> <span>{(() => {
+                                        const s = selectedPatient.treatmentPlan?.currentStatus;
+                                        if (s === 'first') return 'First treatment';
+                                        if (s === 'cr') return 'Complete remission (CR)';
+                                        if (s === 'pr') return 'Partial remission (PR)';
+                                        if (s === 'relapsed') return `Relapsed${selectedPatient.treatmentPlan?.relapsedNumber ? `: ${selectedPatient.treatmentPlan.relapsedNumber}` : ''}`;
+                                        if (s === 'refractory') return 'Refractory/Progression disease';
+                                        if (s === 'palliative') return 'Palliative care';
+                                        return '-';
+                                    })()}</span></div>
+                                    <div className="detail-item"><strong>กลุ่มการวินิจฉัย:</strong> <span>{(() => {
+                                        const g = selectedPatient.treatmentPlan?.diagnosisGroup;
+                                        if (g === 'indolent') return 'Low grade (Indolent) lymphoma';
+                                        if (g === 'cll') return 'Chronic lymphocytic leukemia';
+                                        if (g === 'aggressive') return 'High grade (aggressive) lymphoma';
+                                        if (g === 'plasma') return 'Plasma cell neoplasm';
+                                        if (g === 'mds') return 'MDS';
+                                        if (g === 'mpnmds') return 'MPN/MDS';
+                                        if (g === 'mpn') return 'MPN';
+                                        if (g === 'cml') return 'CML';
+                                        if (g === 'acute') return 'Acute leukemia';
+                                        if (g === 'otherhemo') return 'Other hematologic disease';
+                                        if (g === 'other') return 'Other...';
+                                        return '-';
+                                    })()}</span></div>
                                     <div className="detail-item wide">
                                         <strong>เอกสารแนบเพิ่มเติม:</strong>
                                         {(selectedPatient.attachments && selectedPatient.attachments.length > 0) ? (
@@ -412,15 +492,19 @@ export default function TreatmentPage() {
                                     </div>
                                     <div className="detail-item wide">
                                         <strong>แผนการรักษา:</strong>
-                                        <div className="truncated-text">
+                                        <div className="treatment-plan-box truncated-text">
                                             <p>
                                                 {(selectedPatient.treatmentPlan?.details && selectedPatient.treatmentPlan.details.substring(0, 200)) || '-'}
                                                 {selectedPatient.treatmentPlan?.details && selectedPatient.treatmentPlan.details.length > 200 && '...'}
                                             </p>
                                         </div>
-                                        {selectedPatient.treatmentPlan?.details && (
-                                            <button onClick={() => openReadMoreModal(selectedPatient)} className="btn-link">
-                                                อ่านเพิ่มเติม
+                                        {canManage && selectedPatient.treatmentPlan?.details && (
+                                            <button onClick={() => {
+                                                setIsFullScreenModalOpen(true);
+                                                setIsFullScreenEdit(true);
+                                                setFullScreenEditValue(selectedPatient.treatmentPlan.details || '');
+                                            }} className="btn-link">
+                                                แก้ไขแผนการรักษาแบบเต็มจอ
                                             </button>
                                         )}
                                     </div>
@@ -456,6 +540,54 @@ export default function TreatmentPage() {
                         <pre>{selectedPatient.treatmentPlan?.details}</pre>
                     </div>
                 </Modal>
+            )}
+
+            {isFullScreenModalOpen && (
+                <div className="fullscreen-modal-overlay">
+                    <div className="fullscreen-modal-content">
+                        <button className="close-btn" onClick={() => setIsFullScreenModalOpen(false)}>×</button>
+                        <h2>แผนการรักษาของ {selectedPatient.firstName}</h2>
+                        {isFullScreenEdit ? (
+                            <>
+                                <textarea
+                                    className="treatment-full-textarea"
+                                    value={fullScreenEditValue}
+                                    onChange={e => setFullScreenEditValue(e.target.value)}
+                                    style={{ width: '100%', height: '65vh', fontSize: '1.2rem', padding: '1.5rem', borderRadius: '12px', marginTop: '2rem' }}
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
+                                    <button className="btn-secondary" onClick={() => setIsFullScreenModalOpen(false)}>ยกเลิก</button>
+                                    <button className="btn-primary" onClick={async () => {
+                                        // เรียก API อัปเดตแผนการรักษา
+                                        const token = localStorage.getItem('token');
+                                        const response = await fetch(`${API_BASE_URL}/api/patients/id/${selectedPatient.id}`, {
+                                            method: 'PUT',
+                                            headers: { 'Authorization': `Bearer ${token}` },
+                                            body: (() => {
+                                                const formData = new FormData();
+                                                formData.append('treatmentPlan', JSON.stringify({ details: fullScreenEditValue }));
+                                                // ส่งเฉพาะฟิลด์ treatmentPlan
+                                                return formData;
+                                            })(),
+                                        });
+                                        if (response.ok) {
+                                            const updatedPatient = await response.json();
+                                            setPatients(patients.map(p => p.id === updatedPatient.id ? updatedPatient : p));
+                                            setSelectedPatient(updatedPatient);
+                                            setIsFullScreenModalOpen(false);
+                                        } else {
+                                            alert('เกิดข้อผิดพลาดในการบันทึก');
+                                        }
+                                    }}>บันทึก</button>
+                                </div>
+                            </>
+                        ) : (
+                            <pre className="treatment-full-content">
+                                {selectedPatient.treatmentPlan?.details}
+                            </pre>
+                        )}
+                    </div>
+                </div>
             )}
         </div>
     );
