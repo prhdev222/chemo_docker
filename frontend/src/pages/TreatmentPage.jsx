@@ -1,36 +1,75 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import '../THSarabunNew-normal.js';
+import './PatientManagement.css'; // Reuse styles
+import { FaUserMd, FaStethoscope, FaCalendarAlt, FaFileMedicalAlt, FaSearch } from 'react-icons/fa';
 
-const Modal = ({ children, onClose }) => (
-    <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-    }}>
-        <div style={{ background: 'white', padding: '25px', borderRadius: '8px', width: '90%', maxWidth: '600px', position: 'relative' }}>
-            <button onClick={onClose} style={{
-                position: 'absolute', top: '10px', right: '10px',
-                background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer'
-            }}>
-                &times;
-            </button>
-            {children}
+const API_BASE_URL = 'http://localhost:3001';
+
+const Modal = ({ children, onClose, title, size }) => (
+    <div className="modal-overlay">
+        <div className={`modal-content ${size === 'lg' ? 'modal-lg' : ''}`}>
+            <div className="modal-header">
+                <h4>{title}</h4>
+                <button onClick={onClose} className="modal-close-btn">&times;</button>
+            </div>
+            <div className="modal-body">{children}</div>
         </div>
     </div>
 );
 
-const TreatmentForm = ({ patient, onSave, onCancel }) => {
+// Sub-component to manage the list of attachments in the form
+const AttachmentManager = ({ existingAttachments = [], onRemove, newAttachments, onNewFileChange, onNewFileNameChange }) => {
+    return (
+        <div className="attachment-manager">
+            <label>เอกสารแนบปัจจุบัน:</label>
+            {existingAttachments.length > 0 ? (
+                <ul className="attachment-list">
+                    {existingAttachments.map((att, index) => (
+                        <li key={index} className="attachment-item">
+                            <a href={`${API_BASE_URL}/${att.path}`} target="_blank" rel="noopener noreferrer">{att.name}</a>
+                            <button type="button" onClick={() => onRemove(att.path)} className="btn-delete-attachment">ลบ</button>
+                        </li>
+                    ))}
+                </ul>
+            ) : <p>ไม่มีไฟล์แนบ</p>}
+            
+            <hr />
+            <label>เพิ่มไฟล์แนบใหม่:</label>
+            {newAttachments.map((file, index) => (
+                 <div key={index} className="new-attachment-row">
+                    <input 
+                        type="text" 
+                        placeholder={`ชื่อไฟล์ที่ ${index + 1}`}
+                        value={file.displayName}
+                        onChange={(e) => onNewFileNameChange(index, e.target.value)}
+                        className="attachment-name-input"
+                    />
+                    <span>{file.file.name}</span>
+                </div>
+            ))}
+            <input 
+                type="file" 
+                multiple 
+                onChange={onNewFileChange} 
+                className="attachment-file-input"
+            />
+        </div>
+    );
+};
+
+const TreatmentForm = ({ patient, onSave, onCancel, onAttachmentDelete }) => {
     const [formData, setFormData] = useState({
         diagnosis: '',
         diagnosisDate: '',
         stage: '',
         prognosis: '',
-        treatmentPlan: { details: '' } // Assuming treatmentPlan is a JSON with a 'details' key
+        treatmentPlan: { details: '' }
     });
+    const [newAttachments, setNewAttachments] = useState([]); // { file: File, displayName: string }[]
 
     useEffect(() => {
         if (patient) {
@@ -43,45 +82,87 @@ const TreatmentForm = ({ patient, onSave, onCancel }) => {
                     ? patient.treatmentPlan 
                     : { details: '' }
             });
+            setNewAttachments([]); // Clear new attachments when patient changes
         }
     }, [patient]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         if (name === 'treatmentPlanDetails') {
-            setFormData(prev => ({
-                ...prev,
-                treatmentPlan: { ...prev.treatmentPlan, details: value }
-            }));
+            setFormData(prev => ({ ...prev, treatmentPlan: { details: value } }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
     };
+    
+    const handleNewFileChange = (e) => {
+        const files = Array.from(e.target.files);
+        const newFiles = files.map(file => ({ file, displayName: file.name }));
+        setNewAttachments(prev => [...prev, ...newFiles]);
+    };
+    
+    const handleNewFileNameChange = (index, newName) => {
+        setNewAttachments(prev => {
+            const updated = [...prev];
+            updated[index].displayName = newName;
+            return updated;
+        });
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave(formData);
+        const finalFormData = new FormData();
+
+        // Append all text fields
+        Object.keys(formData).forEach(key => {
+            if (key === 'treatmentPlan') {
+                 // Ensure treatmentPlan is stringified
+                finalFormData.append(key, JSON.stringify(formData[key] || {}));
+            } else {
+                finalFormData.append(key, formData[key]);
+            }
+        });
+        
+        // Append new files and their names
+        newAttachments.forEach(att => {
+            finalFormData.append('newAttachments', att.file);
+        });
+        const attachmentNames = newAttachments.map(att => att.displayName);
+        finalFormData.append('attachmentNames', JSON.stringify(attachmentNames));
+
+        onSave(finalFormData);
     };
 
     return (
-        <form onSubmit={handleSubmit}>
-            <h2>แผนการรักษาของ {patient.firstName} {patient.lastName}</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '20px' }}>
+        <form onSubmit={handleSubmit} className="treatment-form">
+            <div className="form-grid">
                 <input name="diagnosis" value={formData.diagnosis} onChange={handleChange} placeholder="การวินิจฉัย *" required />
                 <input name="diagnosisDate" type="date" value={formData.diagnosisDate} onChange={handleChange} required />
                 <input name="stage" value={formData.stage} onChange={handleChange} placeholder="Stage *" required />
                 <input name="prognosis" value={formData.prognosis} onChange={handleChange} placeholder="Prognosis" />
-                <textarea 
-                    name="treatmentPlanDetails" 
-                    value={formData.treatmentPlan.details} 
-                    onChange={handleChange} 
-                    placeholder="รายละเอียดแผนการรักษา" 
-                    style={{ gridColumn: '1 / -1', minHeight: '100px' }} 
-                />
             </div>
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={onCancel}>ยกเลิก</button>
-                <button type="submit" style={{ background: '#007bff', color: 'white' }}>บันทึกแผนการรักษา</button>
+            
+            <div className="form-group full-width">
+                 <label>รายละเอียดแผนการรักษา:</label>
+                 <textarea 
+                     name="treatmentPlanDetails" 
+                     value={formData.treatmentPlan.details} 
+                     onChange={handleChange} 
+                     placeholder="รายละเอียดแผนการรักษา" 
+                 />
+            </div>
+
+            <AttachmentManager 
+                existingAttachments={patient.attachments || []}
+                onRemove={onAttachmentDelete}
+                newAttachments={newAttachments}
+                onNewFileChange={handleNewFileChange}
+                onNewFileNameChange={handleNewFileNameChange}
+            />
+
+            <div className="form-actions">
+                <button type="button" onClick={onCancel} className="btn-secondary">ยกเลิก</button>
+                <button type="submit" className="btn-primary">บันทึกแผนการรักษา</button>
             </div>
         </form>
     );
@@ -90,7 +171,8 @@ const TreatmentForm = ({ patient, onSave, onCancel }) => {
 export default function TreatmentPage() {
     const [patients, setPatients] = useState([]);
     const [selectedPatient, setSelectedPatient] = useState(null);
-    const [showModal, setShowModal] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isReadMoreModalOpen, setIsReadMoreModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const { user, token } = useContext(AuthContext);
     
@@ -125,33 +207,51 @@ export default function TreatmentPage() {
         `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const handleSaveTreatment = async (formData) => {
-        if (!selectedPatient) return;
-        
+    const handleAttachmentDelete = async (attachmentPath) => {
+        if (!selectedPatient || !window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบไฟล์นี้?')) return;
         try {
-            const response = await fetch(`http://localhost:3001/api/patients/id/${selectedPatient.id}`, {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE_URL}/api/patients/id/${selectedPatient.id}/delete-attachment`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({ attachmentPath })
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save treatment plan');
-            }
-
+            if (!response.ok) throw new Error('Failed to delete attachment');
             const updatedPatient = await response.json();
-            setShowModal(false);
+            // Update local state
+            setPatients(patients.map(p => p.id === updatedPatient.id ? updatedPatient : p));
             setSelectedPatient(updatedPatient);
-            setPatients(prev => prev.map(p => p.id === updatedPatient.id ? updatedPatient : p));
-            alert('บันทึกแผนการรักษาสำเร็จ');
-
         } catch (error) {
-            console.error('Error saving treatment:', error);
-            alert(`เกิดข้อผิดพลาด: ${error.message}`);
+            console.error("Delete attachment error:", error);
+        }
+    };
+
+    const handleSaveTreatment = async (formData) => {
+        if (!selectedPatient) return;
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE_URL}/api/patients/id/${selectedPatient.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    // 'Content-Type' is intentionally omitted; browser sets it for FormData
+                },
+                body: formData,
+            });
+            if (!response.ok) throw new Error('Failed to save treatment plan');
+            const updatedPatient = await response.json();
+            
+            // Update local state
+            setPatients(patients.map(p => p.id === updatedPatient.id ? updatedPatient : p));
+            setSelectedPatient(updatedPatient);
+            
+            closeEditModal();
+        } catch (error) {
+            console.error("Save error:", error);
+            // You might want to show an error message to the user
         }
     };
 
@@ -219,69 +319,142 @@ export default function TreatmentPage() {
         XLSX.writeFile(workbook, `treatment_plan_${selectedPatient.hn}.xlsx`);
     };
 
+    const openEditModal = (patient) => {
+        setSelectedPatient(patient);
+        setIsEditModalOpen(true);
+    };
+
+    const closeEditModal = () => {
+        setIsEditModalOpen(false);
+        setSelectedPatient(null);
+    };
+
+    const openReadMoreModal = (patient) => {
+        setSelectedPatient(patient);
+        setIsReadMoreModalOpen(true);
+    };
+
     if (!canView) {
         return <h2>คุณไม่มีสิทธิ์เข้าถึงหน้านี้</h2>;
     }
 
     return (
-        <div>
-            <h1>แผนการรักษา</h1>
-            <div style={{ marginBottom: '20px', maxWidth: '400px' }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>ค้นหาผู้ป่วย:</label>
-                <input 
-                    type="text"
-                    placeholder="ค้นหาด้วย HN หรือ ชื่อ-นามสกุล..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    style={{ width: '100%', padding: '8px', marginBottom: '10px' }}
-                />
-                <select 
-                    id="patient-select"
-                    onChange={(e) => handleSelectPatient(e.target.value)}
-                    value={selectedPatient ? selectedPatient.id : ''}
-                    style={{ width: '100%', padding: '8px' }}
-                >
-                    <option value="">-- กรุณาเลือกผู้ป่วย --</option>
-                    {filteredPatients.map(p => (
-                        <option key={p.id} value={p.id}>{p.hn} - {p.firstName} {p.lastName}</option>
-                    ))}
-                </select>
+        <div className="patient-management-container">
+            <div className="page-header">
+                <h1>แผนการรักษา</h1>
             </div>
 
-            {selectedPatient && (
-                <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         <h2>ข้อมูลการรักษาของ {selectedPatient.firstName}</h2>
-                         <div>
-                            <button onClick={exportPatientPDF} style={{ marginRight: '10px' }}>Export PDF</button>
-                            <button onClick={exportExcel} style={{ marginRight: '10px' }}>Export Excel</button>
-                            {canManage && (
-                                <button onClick={() => setShowModal(true)} style={{ background: '#ffc107', color: 'black' }}>
-                                    {selectedPatient.diagnosis ? 'แก้ไขแผนการรักษา' : 'เพิ่มแผนการรักษา'}
-                                </button>
-                            )}
-                         </div>
-                    </div>
-                    <div style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px' }}>
-                        <strong>การวินิจฉัย:</strong> <p>{selectedPatient.diagnosis || 'ยังไม่มีข้อมูล'}</p>
-                        <strong>วันที่วินิจฉัย:</strong> <p>{selectedPatient.diagnosisDate ? new Date(selectedPatient.diagnosisDate).toLocaleDateString('th-TH') : 'ยังไม่มีข้อมูล'}</p>
-                        <strong>Stage:</strong> <p>{selectedPatient.stage || 'ยังไม่มีข้อมูล'}</p>
-                        <strong>Prognosis:</strong> <p>{selectedPatient.prognosis || 'ยังไม่มีข้อมูล'}</p>
-                        <strong>แผนการรักษา:</strong> 
-                        <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
-                            {(selectedPatient.treatmentPlan && selectedPatient.treatmentPlan.details) || 'ยังไม่มีข้อมูล'}
-                        </p>
+            <div className="treatment-layout">
+                <div className="search-panel">
+                    <div className="content-card">
+                        <div className="card-header">
+                           <h3>ค้นหาผู้ป่วย</h3>
+                        </div>
+                        <div className="card-body">
+                            <div className="form-group">
+                                <label>ค้นหาด้วย HN หรือ ชื่อ-นามสกุล:</label>
+                                <input 
+                                    type="text"
+                                    placeholder="ค้นหา..."
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                             <div className="form-group">
+                                <label>เลือกผู้ป่วยจากรายการ:</label>
+                                <select 
+                                    id="patient-select"
+                                    onChange={(e) => handleSelectPatient(e.target.value)}
+                                    value={selectedPatient ? selectedPatient.id : ''}
+                                >
+                                    <option value="">-- กรุณาเลือกผู้ป่วย --</option>
+                                    {filteredPatients.map(p => (
+                                        <option key={p.id} value={p.id}>{p.hn} - {p.firstName} {p.lastName}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            )}
-            
-            {showModal && selectedPatient && (
-                <Modal onClose={() => setShowModal(false)}>
+
+                <div className="details-panel">
+                    {selectedPatient ? (
+                        <div className="content-card">
+                            <div className="card-header">
+                                <h3>ข้อมูลแผนการรักษาของ: {selectedPatient.firstName} {selectedPatient.lastName} (HN: {selectedPatient.hn})</h3>
+                                <div className="header-actions">
+                                     {canManage && (
+                                        <button onClick={() => openEditModal(selectedPatient)} className="btn-edit">แก้ไขแผน</button>
+                                     )}
+                                     <button onClick={exportPatientPDF} className="btn-export">PDF</button>
+                                     <button onClick={exportExcel} className="btn-export">Excel</button>
+                                </div>
+                            </div>
+                            <div className="card-body">
+                                <div className="treatment-details">
+                                    <div className="detail-item"><strong>การวินิจฉัย:</strong> <span>{selectedPatient.diagnosis || '-'}</span></div>
+                                    <div className="detail-item"><strong>วันที่วินิจฉัย:</strong> <span>{selectedPatient.diagnosisDate ? new Date(selectedPatient.diagnosisDate).toLocaleDateString('th-TH') : '-'}</span></div>
+                                    <div className="detail-item"><strong>Stage:</strong> <span>{selectedPatient.stage || '-'}</span></div>
+                                    <div className="detail-item"><strong>Prognosis:</strong> <span>{selectedPatient.prognosis || '-'}</span></div>
+                                    <div className="detail-item wide">
+                                        <strong>เอกสารแนบเพิ่มเติม:</strong>
+                                        {(selectedPatient.attachments && selectedPatient.attachments.length > 0) ? (
+                                            <ul className="attachment-list-display">
+                                                {selectedPatient.attachments.map((att, index) => (
+                                                    <li key={index}>
+                                                        <a href={`${API_BASE_URL}/${att.path}`} target="_blank" rel="noopener noreferrer">{att.name}</a>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <span>ไม่มีไฟล์แนบ</span>
+                                        )}
+                                    </div>
+                                    <div className="detail-item wide">
+                                        <strong>แผนการรักษา:</strong>
+                                        <div className="truncated-text">
+                                            <p>
+                                                {(selectedPatient.treatmentPlan?.details && selectedPatient.treatmentPlan.details.substring(0, 200)) || '-'}
+                                                {selectedPatient.treatmentPlan?.details && selectedPatient.treatmentPlan.details.length > 200 && '...'}
+                                            </p>
+                                        </div>
+                                        {selectedPatient.treatmentPlan?.details && (
+                                            <button onClick={() => openReadMoreModal(selectedPatient)} className="btn-link">
+                                                อ่านเพิ่มเติม
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                         <div className="content-card empty-state">
+                            <p>กรุณาเลือกผู้ป่วยเพื่อดูแผนการรักษา</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {isEditModalOpen && selectedPatient && (
+                <Modal onClose={closeEditModal} title={`แก้ไขแผนการรักษาของ ${selectedPatient.firstName}`}>
                     <TreatmentForm 
-                        patient={selectedPatient}
+                        patient={selectedPatient} 
                         onSave={handleSaveTreatment}
-                        onCancel={() => setShowModal(false)}
+                        onCancel={closeEditModal} 
+                        onAttachmentDelete={handleAttachmentDelete}
                     />
+                </Modal>
+            )}
+
+            {isReadMoreModalOpen && selectedPatient && (
+                 <Modal 
+                    onClose={() => setIsReadMoreModalOpen(false)} 
+                    title={`แผนการรักษาของ ${selectedPatient.firstName}`}
+                    size="lg"
+                 >
+                    <div className="full-details-content">
+                        <pre>{selectedPatient.treatmentPlan?.details}</pre>
+                    </div>
                 </Modal>
             )}
         </div>

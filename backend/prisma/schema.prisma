@@ -41,6 +41,7 @@ model Patient {
   diagnosisDate DateTime?
   stage         String?
   prognosis     String?
+  attachments   Json?    // Array of { name: string, path: string }
   treatmentPlan Json
   followUp      Json?
   progression   Json?

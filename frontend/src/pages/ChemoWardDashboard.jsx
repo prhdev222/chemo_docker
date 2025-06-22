@@ -1,162 +1,197 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import { FiLink, FiUsers, FiCalendar, FiEdit } from 'react-icons/fi';
 
-// Reusable Modal Component
-const Modal = ({ children, onClose }) => (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-        <div style={{ background: 'white', padding: '25px', borderRadius: '8px', width: '90%', maxWidth: '600px', position: 'relative' }}>
-            <button onClick={onClose} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
-            {children}
-        </div>
-    </div>
-);
-
-// Appointment Edit Form for Rescheduling
-const RescheduleForm = ({ appointment, onSave, onCancel }) => {
-    const [form, setForm] = useState({ date: '', note: '' });
-    useEffect(() => {
-        if (appointment) {
-            setForm({
-                date: appointment.date ? new Date(appointment.date).toISOString().slice(0, 16) : '',
-                note: appointment.note || ''
-            });
-        }
-    }, [appointment]);
-    
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave({ ...form, admitStatus: 'rescheduled' });
-    };
-
+// I will reuse the existing Modal component from the original file if it exists,
+// assuming it's still needed for rescheduling.
+const Modal = ({ isOpen, onClose, title, children }) => {
+    if (!isOpen) return null;
     return (
-        <form onSubmit={handleSubmit}>
-            <h3>เลื่อนนัดสำหรับ: {appointment.patient.firstName}</h3>
-            <label>วันที่นัดใหม่:</label>
-            <input type="datetime-local" value={form.date} onChange={e => setForm({...form, date: e.target.value})} required style={{width: '100%', padding: '8px', marginBottom: '10px'}}/>
-            <label>เหตุผล/หมายเหตุ:</label>
-            <textarea value={form.note} onChange={e => setForm({...form, note: e.target.value})} required style={{width: '100%', minHeight: '80px', padding: '8px'}}/>
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={onCancel}>ยกเลิก</button>
-                <button type="submit">บันทึกการเลื่อนนัด</button>
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <div className="modal-header">
+                    <h4>{title}</h4>
+                    <button onClick={onClose} className="modal-close-btn">&times;</button>
+                </div>
+                <div className="modal-body">{children}</div>
             </div>
-        </form>
+        </div>
     );
 };
 
 export default function ChemoWardDashboard() {
+    const { token } = useContext(AuthContext);
     const [appointments, setAppointments] = useState([]);
     const [links, setLinks] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [editingAppointment, setEditingAppointment] = useState(null);
-    const { token } = useContext(AuthContext);
+    const [error, setError] = useState(null);
+    
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedAppointment, setSelectedAppointment] = useState(null);
+    const [newDate, setNewDate] = useState('');
 
-    const fetchData = async () => {
+    const fetchDashboardData = async () => {
         setLoading(true);
         try {
-            const [appRes, linkRes] = await Promise.all([
-                fetch('http://localhost:3001/api/appointments', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('http://localhost:3001/api/links', { headers: { 'Authorization': `Bearer ${token}` } })
+            const [appointmentsRes, linksRes] = await Promise.all([
+                fetch('/api/appointments', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/links', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
-            const appData = await appRes.json();
-            const linkData = await linkRes.json();
-            setAppointments(Array.isArray(appData) ? appData : []);
-            setLinks(Array.isArray(linkData) ? linkData : []);
-        } catch (error) {
-            console.error("Failed to fetch data:", error);
+
+            if (!appointmentsRes.ok || !linksRes.ok) {
+                throw new Error('Failed to fetch data');
+            }
+
+            const appointmentsData = await appointmentsRes.json();
+            const linksData = await linksRes.json();
+            
+            setAppointments(appointmentsData);
+            setLinks(linksData);
+        } catch (err) {
+            setError(err.message);
         } finally {
             setLoading(false);
         }
     };
-
+    
     useEffect(() => {
-        fetchData();
+        if (token) {
+            fetchDashboardData();
+        }
     }, [token]);
 
-    const handleUpdateStatus = async (id, newStatus, note = '') => {
-        const payload = { admitStatus: newStatus, note };
-        if (newStatus === 'admit') payload.admitDate = new Date().toISOString();
-        if (newStatus === 'discharged') payload.dischargeDate = new Date().toISOString();
-        
-        await fetch(`http://localhost:3001/api/appointments/${id}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload)
-        });
-        fetchData();
+    const handleUpdateStatus = async (id, status) => {
+        try {
+            const body = { admitStatus: status };
+            if (status === 'admit') {
+                body.admitDate = new Date().toISOString();
+            } else if (status === 'discharged') {
+                body.dischargeDate = new Date().toISOString();
+            }
+
+            const res = await fetch(`/api/appointments/${id}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'Failed to update status');
+            }
+            fetchDashboardData(); // Refresh data
+        } catch (err) {
+            setError(err.message);
+        }
     };
 
     const handleReschedule = (appointment) => {
-        setEditingAppointment(appointment);
+        setSelectedAppointment(appointment);
+        setIsModalOpen(true);
+        const today = new Date().toISOString().split('T')[0];
+        setNewDate(today);
     };
 
-    const saveReschedule = async (formData) => {
-        await fetch(`http://localhost:3001/api/appointments/${editingAppointment.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(formData)
-        });
-        setEditingAppointment(null);
-        fetchData();
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setSelectedAppointment(null);
+        setNewDate('');
     };
+
+    const handleConfirmReschedule = async () => {
+        if (!selectedAppointment || !newDate) return;
+        try {
+            const res = await fetch(`/api/appointments/${selectedAppointment.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ date: newDate, admitStatus: 'waiting' }),
+            });
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'Failed to reschedule');
+            }
+            handleCloseModal();
+            fetchDashboardData();
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    if (loading) return <p>Loading dashboard...</p>;
+    if (error) return <p>Error: {error}</p>;
 
     const today = new Date();
     const waitingAppointments = appointments.filter(a => a.admitStatus === 'waiting' || (a.admitStatus === 'missed' && new Date(a.date).toDateString() === today.toDateString()));
     const admittedPatients = appointments.filter(a => a.admitStatus === 'admit');
 
-    if (loading) return <p>Loading dashboard...</p>;
-
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
-            {/* Main Content Area */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Box 1: Waiting for Admission */}
-                <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '15px' }}>
-                    <h3>รอเข้ารับการรักษา ({waitingAppointments.length})</h3>
-                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                        {waitingAppointments.map(app => (
-                            <div key={app.id} style={{ borderBottom: '1px solid #eee', padding: '10px' }}>
+        <div className="dashboard-grid-original">
+            <div className="main-column">
+                <div className="content-card">
+                    <div className="card-header">
+                        <div className="card-title"><FiCalendar /><h3>รอเข้ารับการรักษา ({waitingAppointments.length})</h3></div>
+                    </div>
+                    <div className="card-body list-body">
+                        {waitingAppointments.length > 0 ? waitingAppointments.map(app => (
+                            <div key={app.id} className="list-item">
                                 <p><strong>{app.patient.firstName} {app.patient.lastName}</strong> (HN: {app.patient.hn})</p>
                                 <p>นัด: {new Date(app.date).toLocaleString('th-TH')} | Regimen: {app.chemoRegimen}</p>
-                                {app.referHospital && <p>ส่งตัวไป: {app.referHospital} (วันที่: {new Date(app.referDate).toLocaleDateString('th-TH')})</p>}
-                                <button onClick={() => handleUpdateStatus(app.id, 'admit')}>Check-in</button>
-                                {app.admitStatus !== 'missed' && <button onClick={() => handleUpdateStatus(app.id, 'missed')}>ไม่มาตามนัด</button>}
-                                <button onClick={() => handleReschedule(app)}>เลื่อนนัด</button>
-                                {app.admitStatus === 'missed' && <span style={{color: 'red', fontWeight: 'bold'}}> MISSED</span>}
+                                <div className="button-group">
+                                    <button className="btn-action-sm btn-success" onClick={() => handleUpdateStatus(app.id, 'admit')}>Check-in</button>
+                                    <button className="btn-action-sm btn-secondary" onClick={() => handleReschedule(app)}>เลื่อนนัด</button>
+                                </div>
+                                {app.admitStatus === 'missed' && <span className="status-missed"> MISSED</span>}
                             </div>
-                        ))}
+                        )) : <p>ไม่มีผู้ป่วยรอเข้ารับการรักษา</p>}
                     </div>
                 </div>
 
-                {/* Box 2: Currently Admitted */}
-                <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '15px' }}>
-                    <h3>กำลังรักษาตัวในหอผู้ป่วย ({admittedPatients.length})</h3>
-                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                        {admittedPatients.map(app => (
-                           <div key={app.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px' }}>
-                               <span><strong>{app.patient.firstName} {app.patient.lastName}</strong> (HN: {app.patient.hn}) - Admit: {new Date(app.admitDate).toLocaleDateString('th-TH')}</span>
-                               <button onClick={() => handleUpdateStatus(app.id, 'discharged')}>Discharge</button>
-                           </div>
-                        ))}
+                <div className="content-card">
+                    <div className="card-header">
+                        <div className="card-title"><FiUsers /><h3>กำลังรักษาตัวในหอผู้ป่วย ({admittedPatients.length})</h3></div>
+                    </div>
+                    <div className="card-body list-body">
+                        {admittedPatients.length > 0 ? admittedPatients.map(app => (
+                             <div key={app.id} className="list-item">
+                                <span><strong>{app.patient.firstName} {app.patient.lastName}</strong> (HN: {app.patient.hn}) - Admit: {new Date(app.admitDate).toLocaleString('th-TH')}</span>
+                                <button className="btn-action-sm btn-danger" onClick={() => handleUpdateStatus(app.id, 'discharged')}>Discharge</button>
+                            </div>
+                        )) : <p>ไม่มีผู้ป่วยกำลังรักษาตัว</p>}
                     </div>
                 </div>
             </div>
 
-            {/* Sidebar / Tools Area */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Box 4: External Links */}
-                <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '15px' }}>
-                    <h3>Links เอกสาร</h3>
-                    {links.map(link => (
-                        <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginBottom: '8px' }}>{link.title}</a>
-                    ))}
+            <div className="side-column">
+                 <div className="content-card">
+                    <div className="card-header">
+                        <div className="card-title"><FiLink /><h3>Links เอกสาร</h3></div>
+                        <button className="card-action-icon"><FiEdit /></button>
+                    </div>
+                    <div className="card-body">
+                        {links.length > 0 ? links.map(link => (
+                            <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="link-item">{link.title}</a>
+                        )) : <p>ยังไม่มีลิงก์</p>}
+                    </div>
                 </div>
             </div>
-            
-            {editingAppointment && (
-                <Modal onClose={() => setEditingAppointment(null)}>
-                    <RescheduleForm appointment={editingAppointment} onSave={saveReschedule} onCancel={() => setEditingAppointment(null)} />
-                </Modal>
-            )}
+
+             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title="เลื่อนนัดผู้ป่วย">
+                <div className="reschedule-form">
+                    <p>เลื่อนนัดสำหรับ: <strong>{selectedAppointment?.patient.firstName}</strong></p>
+                    <label htmlFor="newDate">วันที่นัดใหม่:</label>
+                    <input type="date" id="newDate" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+                    <div className="button-group">
+                        <button className="btn-primary" onClick={handleConfirmReschedule}>ยืนยันการเลื่อนนัด</button>
+                        <button className="btn-secondary" onClick={handleCloseModal}>ยกเลิก</button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
-}
+} 

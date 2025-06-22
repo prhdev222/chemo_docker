@@ -4,6 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import '../THSarabunNew-normal.js';
+import './PatientManagement.css';
 
 // --- Modal Component ---
 const Modal = ({ children, onClose }) => {
@@ -46,13 +47,7 @@ const patientStatusColors = {
 };
 
 const PatientStatusBadge = ({ status }) => (
-    <span style={{
-        backgroundColor: patientStatusColors[status] || '#6c757d',
-        color: 'white',
-        padding: '4px 8px',
-        borderRadius: '12px',
-        fontSize: '0.8rem',
-    }}>
+    <span className={`status-badge status-${status.toLowerCase()}`}>
         {status}
     </span>
 );
@@ -69,6 +64,7 @@ const PatientForm = ({ patient, onSave, onCancel }) => {
         address: '',
         status: 'ACTIVE'
     });
+    const [dobInput, setDobInput] = useState('');
 
     useEffect(() => {
         if (patient) {
@@ -76,14 +72,35 @@ const PatientForm = ({ patient, onSave, onCancel }) => {
                 hn: patient.hn,
                 firstName: patient.firstName,
                 lastName: patient.lastName,
-                birthDate: patient.birthDate ? patient.birthDate.split('T')[0] : '',
+                birthDate: patient.birthDate || '',
                 phone: patient.phone || '',
                 lineId: patient.lineId || '',
                 address: patient.address || '',
                 status: patient.status || 'ACTIVE'
             });
+            if (patient.birthDate) {
+                const birth = new Date(patient.birthDate);
+                // Convert to Buddhist Era for display
+                const beYear = birth.getFullYear() + 543;
+                const month = String(birth.getMonth() + 1).padStart(2, '0');
+                const day = String(birth.getDate()).padStart(2, '0');
+                setDobInput(`${day}/${month}/${beYear}`);
+            } else {
+                setDobInput('');
+            }
+        } else {
+            // Reset form for new patient
+            setFormData({
+                hn: '', firstName: '', lastName: '', birthDate: '',
+                phone: '', lineId: '', address: '', status: 'ACTIVE'
+            });
+            setDobInput('');
         }
     }, [patient]);
+
+    const handleDobChange = (e) => {
+        setDobInput(e.target.value);
+    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -92,32 +109,59 @@ const PatientForm = ({ patient, onSave, onCancel }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave(formData);
+        
+        let birthDateToSave = null;
+        const input = dobInput.trim();
+
+        if (/^\d{1,3}$/.test(input)) { // Check if it's an age (1-3 digits)
+            const age = parseInt(input, 10);
+            const currentYear = new Date().getFullYear();
+            birthDateToSave = new Date(currentYear - age, 0, 1).toISOString();
+        } else if (/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.test(input)) { // Check for dd/mm/yyyy format
+            const parts = input.split('/');
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            let year = parseInt(parts[2], 10);
+
+            if (year > 2500) { // Assuming it's Buddhist Era
+                year -= 543;
+            }
+            birthDateToSave = new Date(year, month, day).toISOString();
+        }
+
+        onSave({ ...formData, birthDate: birthDateToSave });
     };
 
     return (
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="patient-form">
             <h2>{patient ? 'แก้ไขข้อมูลผู้ป่วย' : 'เพิ่มผู้ป่วยใหม่'}</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '20px' }}>
+            <div className="form-grid">
                 <input name="hn" value={formData.hn} onChange={handleChange} placeholder="HN *" required />
-                <input name="birthDate" type="date" value={formData.birthDate} onChange={handleChange} required />
+                <input 
+                    name="birthDate" 
+                    type="text" 
+                    value={dobInput} 
+                    onChange={handleDobChange} 
+                    placeholder="วว/ดด/ปปปป (พ.ศ.) หรือ อายุ" 
+                    required 
+                />
                 <input name="firstName" value={formData.firstName} onChange={handleChange} placeholder="ชื่อ *" required />
                 <input name="lastName" value={formData.lastName} onChange={handleChange} placeholder="นามสกุล *" required />
                 <input name="phone" value={formData.phone} onChange={handleChange} placeholder="เบอร์โทรศัพท์" />
                 <input name="lineId" value={formData.lineId} onChange={handleChange} placeholder="Line ID" />
-                <div style={{ gridColumn: '1 / -1' }}>
+                <div className="form-full-width">
                     <label>สถานะผู้ป่วย:</label>
-                    <select name="status" value={formData.status} onChange={handleChange} style={{width: '100%', padding: '8px', marginTop: '5px'}}>
+                    <select name="status" value={formData.status} onChange={handleChange} >
                         <option value="ACTIVE">Active</option>
                         <option value="INACTIVE">Inactive</option>
                         <option value="DECEASED">Deceased</option>
                     </select>
                 </div>
-                <textarea name="address" value={formData.address} onChange={handleChange} placeholder="ที่อยู่" style={{ gridColumn: '1 / -1' }} />
+                <textarea name="address" value={formData.address} onChange={handleChange} placeholder="ที่อยู่" className="form-full-width" />
             </div>
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" onClick={onCancel} style={{ background: '#6c757d', color: 'white' }}>ยกเลิก</button>
-                <button type="submit" style={{ background: '#007bff', color: 'white' }}>{patient ? 'บันทึก' : 'เพิ่มผู้ป่วย'}</button>
+            <div className="form-actions">
+                <button type="button" onClick={onCancel} className="btn-cancel">ยกเลิก</button>
+                <button type="submit" className="btn-save">{patient ? 'บันทึก' : 'เพิ่มผู้ป่วย'}</button>
             </div>
         </form>
     );
@@ -270,64 +314,79 @@ export default function PatientManagement() {
         }
     };
 
+    const filteredPatients = statusFilter === 'All'
+        ? patients
+        : patients.filter(p => p.status === statusFilter);
+
     if (!canManagePatients) {
         return <h2>คุณไม่มีสิทธิ์เข้าถึงหน้านี้</h2>;
     }
 
     return (
-        <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div className="patient-management-container">
+            <div className="page-header">
                 <h1>จัดการข้อมูลผู้ป่วย</h1>
-                <div style={{display: 'flex', gap: '10px'}}>
-                    <button onClick={handleAddNew} style={{ background: '#28a745', color: 'white' }}>+ เพิ่มผู้ป่วยใหม่</button>
-                    <button onClick={exportPDF}>Export PDF</button>
-                    <button onClick={exportExcel}>Export Excel</button>
+                <div className="header-actions">
+                    <button onClick={handleAddNew} className="btn-add-new">
+                        เพิ่มผู้ป่วยใหม่
+                    </button>
+                    <button onClick={exportPDF} className="btn-export">Export PDF</button>
+                    <button onClick={exportExcel} className="btn-export">Export Excel</button>
                 </div>
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
-                <label>กรองตามสถานะ: </label>
-                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                    <option value="All">ทั้งหมด</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                    <option value="DECEASED">Deceased</option>
-                </select>
-            </div>
-
-            {loading ? <p>กำลังโหลด...</p> : (
-                <table>
-                    <thead>
-                        <tr>
-                            <th>HN</th>
-                            <th>ชื่อ-นามสกุล</th>
-                            <th>อายุ</th>
-                            <th>เบอร์โทร</th>
-                            <th>สถานะ</th>
-                            <th>การจัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {(statusFilter === 'All' ? patients : patients.filter(p => p.status === statusFilter)).map(patient => (
-                            <tr key={patient.id}>
-                                <td>{patient.hn}</td>
-                                <td>{`${patient.firstName} ${patient.lastName}`}</td>
-                                <td>{calculateAge(patient.birthDate)}</td>
-                                <td>{patient.phone || '-'}</td>
-                                <td><PatientStatusBadge status={patient.status} /></td>
-                                <td>
-                                    <button onClick={() => handleEdit(patient)}>แก้ไข</button>
-                                    <button onClick={() => handleDelete(patient.id)} style={{ marginLeft: 5, background: '#dc3545' }}>ลบ</button>
-                                </td>
+            <div className="content-card">
+                <div className="card-header">
+                    <div className="filter-group">
+                        <label htmlFor="status-filter">กรองตามสถานะ:</label>
+                        <select id="status-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                            <option value="All">ทั้งหมด</option>
+                            <option value="ACTIVE">Active</option>
+                            <option value="INACTIVE">Inactive</option>
+                            <option value="DECEASED">Deceased</option>
+                        </select>
+                    </div>
+                </div>
+                <div className="card-body">
+                    <table className="patient-table">
+                        <thead>
+                            <tr>
+                                <th>HN</th>
+                                <th>ชื่อ-นามสกุล</th>
+                                <th>อายุ</th>
+                                <th>เบอร์โทร</th>
+                                <th>สถานะ</th>
+                                <th>การจัดการ</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            )}
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan="6">Loading...</td></tr>
+                            ) : filteredPatients.length > 0 ? (
+                                filteredPatients.map(patient => (
+                                    <tr key={patient.id}>
+                                        <td>{patient.hn}</td>
+                                        <td>{patient.firstName} {patient.lastName}</td>
+                                        <td>{calculateAge(patient.birthDate)}</td>
+                                        <td>{patient.phone || '-'}</td>
+                                        <td><PatientStatusBadge status={patient.status} /></td>
+                                        <td className="actions-cell">
+                                            <button onClick={() => handleEdit(patient)} className="btn-edit">แก้ไข</button>
+                                            <button onClick={() => handleDelete(patient.id)} className="btn-delete">ลบ</button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr><td colSpan="6">ไม่พบข้อมูลผู้ป่วย</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
             {showModal && (
                 <Modal onClose={() => setShowModal(false)}>
-                    <PatientForm 
+                    <PatientForm
                         patient={editingPatient}
                         onSave={handleSavePatient}
                         onCancel={() => setShowModal(false)}
