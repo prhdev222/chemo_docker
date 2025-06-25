@@ -7,8 +7,7 @@ import '../assets/fonts/THSarabunNew-normal.js';
 import '../styles/patient.css';
 import '../styles/common.css';
 import { FaPlus, FaFilePdf, FaFileExcel } from 'react-icons/fa';
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { API_BASE_URL, api } from '../utils/api';
 
 // --- Modal Component ---
 const Modal = ({ children, onClose }) => {
@@ -196,10 +195,7 @@ export default function PatientManagement() {
     const fetchPatients = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/patients`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
+            const data = await api.getPatients(token);
             setPatients(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Error fetching patients:', error);
@@ -263,24 +259,11 @@ export default function PatientManagement() {
     };
 
     const handleSavePatient = async (formData) => {
-        const url = editingPatient
-            ? `${API_URL}/api/patients/id/${editingPatient.id}`
-            : `${API_URL}/api/patients`;
-        const method = editingPatient ? 'PUT' : 'POST';
-
         try {
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(formData),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save patient');
+            if (editingPatient) {
+                await api.updatePatientById(editingPatient.id, formData, token);
+            } else {
+                await api.createPatient(formData, token);
             }
             
             setShowModal(false);
@@ -308,11 +291,7 @@ export default function PatientManagement() {
         if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบผู้ป่วยรายนี้?')) return;
 
         try {
-            const response = await fetch(`${API_URL}/api/patients/id/${patientId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!response.ok) throw new Error('Failed to delete patient');
+            await api.deletePatientById(patientId, token);
             fetchPatients();
             alert('ลบผู้ป่วยสำเร็จ');
         } catch (error) {

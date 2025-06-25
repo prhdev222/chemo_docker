@@ -7,8 +7,7 @@ import '../assets/fonts/THSarabunNew-normal.js';
 import '../styles/treatment.css';
 import '../styles/common.css';
 import { FaUserMd, FaStethoscope, FaCalendarAlt, FaFileMedicalAlt, FaSearch } from 'react-icons/fa';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+import { API_BASE_URL, api } from '../utils/api';
 
 const Modal = ({ children, onClose, title, size }) => (
     <div className="modal-overlay">
@@ -242,10 +241,7 @@ export default function TreatmentPage() {
 
     const fetchPatients = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/patients`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
+            const data = await api.getPatients(token);
             setPatients(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Error fetching patients:', error);
@@ -265,17 +261,8 @@ export default function TreatmentPage() {
     const handleAttachmentDelete = async (attachmentPath) => {
         if (!selectedPatient || !window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบไฟล์นี้?')) return;
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${API_BASE_URL}/api/patients/id/${selectedPatient.id}/delete-attachment`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ attachmentPath })
-            });
-            if (!response.ok) throw new Error('Failed to delete attachment');
-            const updatedPatient = await response.json();
+            await api.deletePatientAttachment(selectedPatient.id, attachmentPath, token);
+            const updatedPatient = await api.getPatientById(selectedPatient.id, token);
             // Update local state
             setPatients(patients.map(p => p.id === updatedPatient.id ? updatedPatient : p));
             setSelectedPatient(updatedPatient);
@@ -287,8 +274,7 @@ export default function TreatmentPage() {
     const handleSaveTreatment = async (formData) => {
         if (!selectedPatient) return;
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${API_BASE_URL}/api/patients/id/${selectedPatient.id}`, {
+            const response = await fetch(`${API_BASE_URL}/patients/id/${selectedPatient.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -559,8 +545,7 @@ export default function TreatmentPage() {
                                     <button className="btn-secondary" onClick={() => setIsFullScreenModalOpen(false)}>ยกเลิก</button>
                                     <button className="btn-primary" onClick={async () => {
                                         // เรียก API อัปเดตแผนการรักษา
-                                        const token = localStorage.getItem('token');
-                                        const response = await fetch(`${API_BASE_URL}/api/patients/id/${selectedPatient.id}`, {
+                                        const response = await fetch(`${API_BASE_URL}/patients/id/${selectedPatient.id}`, {
                                             method: 'PUT',
                                             headers: { 'Authorization': `Bearer ${token}` },
                                             body: (() => {

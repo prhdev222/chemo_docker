@@ -2,8 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { FaUserPlus, FaLink, FaEdit, FaTrash, FaTimes } from 'react-icons/fa';
 import './SettingsPage.css'; // Import new CSS file
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { API_BASE_URL, api } from '../utils/api';
 
 // --- Reusable Modal Component ---
 const Modal = ({ children, onClose, title }) => (
@@ -30,15 +29,7 @@ const UserRegistration = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch(`${API_URL}/api/users/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
-                body: JSON.stringify(formData)
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'ไม่สามารถสร้างผู้ใช้ได้');
-            }
+            await api.register(formData, token);
             alert(`สร้างผู้ใช้ '${formData.name}' สำเร็จ!`);
             setFormData({ name: '', email: '', password: '', role: 'NURSE' });
         } catch (error) {
@@ -117,8 +108,7 @@ const LinkManagement = () => {
 
     const fetchLinks = async () => {
         try {
-            const response = await fetch(`${API_URL}/api/links`, { headers: { 'Authorization': `Bearer ${token}` } });
-            const data = await response.json();
+            const data = await api.getLinks(token);
             setLinks(Array.isArray(data) ? data : []);
         } catch (error) { console.error('Error fetching links:', error); }
     };
@@ -126,21 +116,27 @@ const LinkManagement = () => {
     useEffect(() => { fetchLinks(); }, [token]);
 
     const handleSave = async (formData) => {
-        const url = editingLink ? `${API_URL}/api/links/${editingLink.id}` : `${API_URL}/api/links`;
-        const method = editingLink ? 'PUT' : 'POST';
-        await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
-            body: JSON.stringify(formData)
-        });
-        setIsModalOpen(false);
-        fetchLinks();
+        try {
+            if (editingLink) {
+                await api.updateLink(editingLink.id, formData, token);
+            } else {
+                await api.createLink(formData, token);
+            }
+            setIsModalOpen(false);
+            fetchLinks();
+        } catch (error) {
+            console.error('Error saving link:', error);
+        }
     };
 
     const handleDelete = async (id) => {
         if (window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบลิงก์นี้?')) {
-            await fetch(`${API_URL}/api/links/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-            fetchLinks();
+            try {
+                await api.deleteLink(id, token);
+                fetchLinks();
+            } catch (error) {
+                console.error('Error deleting link:', error);
+            }
         }
     };
     

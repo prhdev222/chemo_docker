@@ -1,7 +1,7 @@
 // API utility functions with comprehensive logging
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
-const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 10000;
-const DEBUG_MODE = import.meta.env.VITE_DEBUG_MODE === 'true' || true; // Default to true for development
+export const API_BASE_URL = 'http://localhost:5000';
+const API_TIMEOUT = 10000;
+const DEBUG_MODE = true;
 
 // Log API configuration
 console.log('🔧 API Configuration:', {
@@ -109,6 +109,7 @@ export const api = {
   // Patient APIs
   getPatients: (token) => apiRequest('/patients', {}, token),
   getPatient: (hn, token) => apiRequest(`/patients/${hn}`, {}, token),
+  getPatientById: (id, token) => apiRequest(`/patients/id/${id}`, {}, token),
   createPatient: (patientData, token) => apiRequest('/patients', {
     method: 'POST',
     body: JSON.stringify(patientData)
@@ -117,8 +118,19 @@ export const api = {
     method: 'PUT',
     body: JSON.stringify(patientData)
   }, token),
+  updatePatientById: (id, patientData, token) => apiRequest(`/patients/id/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(patientData)
+  }, token),
   deletePatient: (hn, token) => apiRequest(`/patients/${hn}`, {
     method: 'DELETE'
+  }, token),
+  deletePatientById: (id, token) => apiRequest(`/patients/id/${id}`, {
+    method: 'DELETE'
+  }, token),
+  deletePatientAttachment: (id, attachmentPath, token) => apiRequest(`/patients/id/${id}/delete-attachment`, {
+    method: 'PUT',
+    body: JSON.stringify({ attachmentPath })
   }, token),
 
   // Appointment APIs
@@ -135,16 +147,38 @@ export const api = {
   deleteAppointment: (id, token) => apiRequest(`/appointments/${id}`, {
     method: 'DELETE'
   }, token),
+  updateAppointmentStatus: (id, statusData, token) => apiRequest(`/appointments/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(statusData)
+  }, token),
 
   // User APIs
   login: (credentials) => apiRequest('/users/login', {
     method: 'POST',
     body: JSON.stringify(credentials)
   }),
+  register: (userData, token) => apiRequest('/users/register', {
+    method: 'POST',
+    body: JSON.stringify(userData)
+  }, token),
   getProfile: (token) => apiRequest('/users/profile', {}, token),
   updateProfile: (profileData, token) => apiRequest('/users/profile', {
     method: 'PUT',
     body: JSON.stringify(profileData)
+  }, token),
+
+  // Link APIs
+  getLinks: (token) => apiRequest('/links', {}, token),
+  createLink: (linkData, token) => apiRequest('/links', {
+    method: 'POST',
+    body: JSON.stringify(linkData)
+  }, token),
+  updateLink: (id, linkData, token) => apiRequest(`/links/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(linkData)
+  }, token),
+  deleteLink: (id, token) => apiRequest(`/links/${id}`, {
+    method: 'DELETE'
   }, token),
 
   // Health check

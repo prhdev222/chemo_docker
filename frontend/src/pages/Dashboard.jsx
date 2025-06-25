@@ -3,8 +3,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import '../assets/fonts/THSarabunNew-normal.js';
 import { AuthContext } from '../context/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { API_BASE_URL, api } from '../utils/api';
 
 export default function Dashboard() {
   const [patients, setPatients] = useState([]);
@@ -18,40 +17,24 @@ export default function Dashboard() {
     console.log('🔑 Auth token available:', !!token);
   }, []);
 
-  const fetchPatients = () => {
+  const fetchPatients = async () => {
     if (!token) {
       console.warn('⚠️ No token available for fetching patients');
       return;
     }
     
     console.log('📡 Fetching patients from API...');
-    fetch(`${API_URL}/api/patients`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => {
-        console.log('📊 Patients API response:', {
-          status: res.status,
-          statusText: res.statusText,
-          ok: res.ok
-        });
-        return res.json();
-      })
-      .then(data => {
-        if (data.error) {
-          console.error('❌ Error fetching patients:', data.error);
-          setPatients([]);
-        } else {
-          console.log('✅ Patients fetched successfully:', {
-            count: data.length,
-            patients: data.map(p => ({ hn: p.hn, name: `${p.firstName} ${p.lastName}` }))
-          });
-          setPatients(data);
-        }
-      })
-      .catch(error => {
-        console.error('💥 Error in fetchPatients:', error);
-        setPatients([]);
+    try {
+      const data = await api.getPatients(token);
+      console.log('✅ Patients fetched successfully:', {
+        count: data.length,
+        patients: data.map(p => ({ hn: p.hn, name: `${p.firstName} ${p.lastName}` }))
       });
+      setPatients(data);
+    } catch (error) {
+      console.error('❌ Error fetching patients:', error);
+      setPatients([]);
+    }
   };
 
   useEffect(() => {
@@ -60,41 +43,25 @@ export default function Dashboard() {
   }, [token]);
 
   // ดึงข้อมูลผู้ป่วยตาม HN
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!token || !hn) {
       console.warn('⚠️ Search skipped:', { hasToken: !!token, hasHn: !!hn });
       return;
     }
     
     console.log('🔍 Searching for patient:', { hn });
-    fetch(`${API_URL}/api/patients/${hn}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => {
-        console.log('📡 Patient search API response:', {
-          status: res.status,
-          statusText: res.statusText,
-          ok: res.ok
-        });
-        return res.json();
-      })
-      .then(data => {
-        if (data.error) {
-          console.error('❌ Patient search error:', data.error);
-          setSelectedPatient(null);
-        } else {
-          console.log('✅ Patient found:', {
-            hn: data.hn,
-            name: `${data.firstName} ${data.lastName}`,
-            diagnosis: data.diagnosis
-          });
-          setSelectedPatient(data);
-        }
-      })
-      .catch(error => {
-        console.error('💥 Error in patient search:', error);
-        setSelectedPatient(null);
+    try {
+      const data = await api.getPatient(hn, token);
+      console.log('✅ Patient found:', {
+        hn: data.hn,
+        name: `${data.firstName} ${data.lastName}`,
+        diagnosis: data.diagnosis
       });
+      setSelectedPatient(data);
+    } catch (error) {
+      console.error('❌ Patient search error:', error);
+      setSelectedPatient(null);
+    }
   };
 
   // ฟังก์ชัน export PDF

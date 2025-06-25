@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }) => {
   }, [token]);
 
   const login = async (email, password) => {
-    const API_URL = import.meta.env.VITE_API_URL;
+    const API_URL = 'http://localhost:5000';
     console.log('🔑 Login attempt:', {
       email: email,
       apiUrl: API_URL,
@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
     });
     
     try {
-      const res = await fetch(`${API_URL}/api/users/login`, {
+      const res = await fetch(`${API_URL}/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

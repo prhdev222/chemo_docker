@@ -4,6 +4,7 @@ import { FiLink , FiCalendar, FiEdit } from 'react-icons/fi';
 import { FaBed } from 'react-icons/fa';
 import '../styles/dashboard.css';
 import '../styles/common.css';
+import { API_BASE_URL, api } from '../utils/api';
 
 // I will reuse the existing Modal component from the original file if it exists,
 // assuming it's still needed for rescheduling.
@@ -37,17 +38,10 @@ export default function ChemoWardDashboard() {
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
-            const [appointmentsRes, linksRes] = await Promise.all([
-                fetch(`${import.meta.env.VITE_API_URL}/api/appointments`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch(`${import.meta.env.VITE_API_URL}/api/links`, { headers: { 'Authorization': `Bearer ${token}` } })
+            const [appointmentsData, linksData] = await Promise.all([
+                api.getAppointments(token),
+                api.getLinks(token)
             ]);
-
-            if (!appointmentsRes.ok || !linksRes.ok) {
-                throw new Error('Failed to fetch data');
-            }
-
-            const appointmentsData = await appointmentsRes.json();
-            const linksData = await linksRes.json();
             
             setAppointments(appointmentsData);
             setLinks(linksData);
@@ -73,18 +67,7 @@ export default function ChemoWardDashboard() {
                 body.dischargeDate = new Date().toISOString();
             }
 
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/appointments/${id}/status`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(body),
-            });
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.message || 'Failed to update status');
-            }
+            await api.updateAppointmentStatus(id, body, token);
             fetchDashboardData(); // Refresh data
         } catch (err) {
             setError(err.message);
@@ -107,18 +90,10 @@ export default function ChemoWardDashboard() {
     const handleConfirmReschedule = async () => {
         if (!selectedAppointment || !newDate) return;
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/appointments/${selectedAppointment.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ date: newDate, admitStatus: 'waiting' }),
-            });
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.message || 'Failed to reschedule');
-            }
+            await api.updateAppointment(selectedAppointment.id, { 
+                date: newDate, 
+                admitStatus: 'waiting' 
+            }, token);
             handleCloseModal();
             fetchDashboardData();
         } catch (err) {

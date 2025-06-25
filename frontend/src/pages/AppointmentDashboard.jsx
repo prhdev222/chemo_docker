@@ -7,8 +7,7 @@ import { FaEdit, FaTrash, FaPlus, FaFilePdf, FaFileExcel, FaTimes, FaCheckCircle
 import '../assets/fonts/THSarabunNew-normal.js';
 import '../styles/dashboard.css';
 import '../styles/common.css';
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { API_BASE_URL, api } from '../utils/api';
 
 // --- Reusable Modal ---
 const Modal = ({ children, onClose, title }) => (
@@ -140,11 +139,7 @@ export default function AppointmentDashboard() {
     const fetchAppointments = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/appointments`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!response.ok) throw new Error('Failed to fetch appointments');
-            const data = await response.json();
+            const data = await api.getAppointments(token);
             setAppointments(Array.isArray(data) ? data.filter(a => a.admitStatus === 'waiting' || a.admitStatus === 'rescheduled' || a.admitStatus === 'missed' || a.admitStatus === 'followup') : []);
         } catch (error) {
             console.error('Error fetching appointments:', error);
@@ -155,11 +150,7 @@ export default function AppointmentDashboard() {
 
     const fetchPatients = useCallback(async () => {
         try {
-            const response = await fetch(`${API_URL}/api/patients`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!response.ok) throw new Error('Failed to fetch patients');
-            const data = await response.json();
+            const data = await api.getPatients(token);
             setPatients(Array.isArray(data) ? data.filter(p => p.status === 'ACTIVE') : []);
         } catch (error) {
             console.error('Error fetching patients:', error);
@@ -186,11 +177,7 @@ export default function AppointmentDashboard() {
     const handleDelete = async (id) => {
         if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบนัดหมายนี้?")) return;
         try {
-            const response = await fetch(`${API_URL}/api/appointments/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-             if (!response.ok) throw new Error('Failed to delete appointment');
+            await api.deleteAppointment(id, token);
             fetchAppointments();
         } catch (error) {
             console.error('Error deleting appointment:', error);
@@ -199,11 +186,6 @@ export default function AppointmentDashboard() {
     };
     
     const handleSave = async (formData) => {
-        const url = editingAppointment
-            ? `${API_URL}/api/appointments/${editingAppointment.id}`
-            : `${API_URL}/api/appointments`;
-        const method = editingAppointment ? 'PUT' : 'POST';
-
         // Ensure patientId is a number
         const payload = {
             ...formData,
@@ -211,14 +193,10 @@ export default function AppointmentDashboard() {
         };
         
         try {
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(payload)
-            });
-            if (!response.ok) {
-                 const errorData = await response.json();
-                 throw new Error(errorData.error || 'Failed to save appointment');
+            if (editingAppointment) {
+                await api.updateAppointment(editingAppointment.id, payload, token);
+            } else {
+                await api.createAppointment(payload, token);
             }
             fetchAppointments();
             handleCloseModal();
@@ -231,12 +209,10 @@ export default function AppointmentDashboard() {
     const handleAdmit = async (id) => {
         if (!window.confirm("คุณต้องการ Admit ผู้ป่วยรายนี้ และนำรายการนี้ออกจากหน้าแดชบอร์ดใช่หรือไม่?")) return;
         try {
-            const response = await fetch(`${API_URL}/api/appointments/${id}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ admitStatus: 'admit', admitDate: new Date().toISOString() })
-            });
-            if (!response.ok) throw new Error('Failed to admit patient');
+            await api.updateAppointmentStatus(id, { 
+                admitStatus: 'admit', 
+                admitDate: new Date().toISOString() 
+            }, token);
             fetchAppointments(); // Re-fetch to update the list
         } catch (error) {
             console.error('Error admitting patient:', error);
