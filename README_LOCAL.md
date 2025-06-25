@@ -1,8 +1,6 @@
-# ระบบจัดการข้อมูลผู้ป่วยและแดชบอร์ดหอผู้ป่วยเคมีบำบัด V2
+# ระบบจัดการข้อมูลผู้ป่วยและแดชบอร์ดหอผู้ป่วยเคมีบำบัด
 
 ระบบจัดการข้อมูลผู้ป่วยและแดชบอร์ดสำหรับหอผู้ป่วยเคมีบำบัดที่พัฒนาด้วย React, Node.js, และ Prisma
-
-**GitHub Repository:** [https://github.com/prhdev222/chemo_ward_V2.git](https://github.com/prhdev222/chemo_ward_V2.git)
 
 ## 🚀 การติดตั้งแบบเร็ว (Quick Start)
 
@@ -32,8 +30,8 @@ chmod +x start-local.sh
 
 ### 1. Clone โปรเจค
 ```bash
-git clone https://github.com/prhdev222/chemo_ward_V2.git
-cd chemo_ward_V2
+git clone https://github.com/prhdev222/chemotherapy_ward_V1.2.git
+cd CHEMO_CURSOR
 ```
 
 ### 2. ติดตั้ง Backend
@@ -45,12 +43,16 @@ npm install
 ### 3. ตั้งค่า Backend Environment
 สร้างไฟล์ `.env` ในโฟลเดอร์ `backend/`:
 ```env
-# Database Configuration (Required)
 DATABASE_URL="file:./dev.db"
-
-# Optional: Override defaults if needed
-# PORT=5000
-# JWT_SECRET=your_custom_secret_here
+PORT=5000
+NODE_ENV=development
+JWT_SECRET=your_super_secret_jwt_key_here
+JWT_EXPIRES_IN=24h
+UPLOAD_PATH=./uploads
+MAX_FILE_SIZE=10485760
+CORS_ORIGIN=http://localhost:5173
+LOG_LEVEL=debug
+API_PREFIX=/api/v1
 ```
 
 ### 4. ตั้งค่าฐานข้อมูล
@@ -73,12 +75,14 @@ npm install
 ### 7. ตั้งค่า Frontend Environment
 สร้างไฟล์ `.env` ในโฟลเดอร์ `frontend/`:
 ```env
-# API Configuration (Optional - uses defaults if not set)
-# VITE_API_BASE_URL=http://localhost:5000/api/v1
-
-# App Configuration (Optional)
-# VITE_APP_NAME=Chemo Management System
-# VITE_APP_VERSION=1.0.0
+VITE_API_BASE_URL=http://localhost:5000/api/v1
+VITE_API_TIMEOUT=10000
+VITE_APP_NAME=Chemo Management System
+VITE_APP_VERSION=1.0.0
+VITE_DEBUG_MODE=true
+VITE_LOG_LEVEL=debug
+VITE_ENABLE_ANALYTICS=false
+VITE_ENABLE_DEBUG_PANEL=true
 ```
 
 ### 8. รัน Frontend
@@ -138,12 +142,8 @@ npm run lint        # Lint code
 
 ### 🏥 แดชบอร์ดหอผู้ป่วยเคมีบำบัด
 - **กล่องรอ Admit**: แสดงผู้ป่วยที่รอเข้ารับการรักษา
-  - ปุ่ม Check-in
-  - แจ้งไม่มาตามนัด
-  - เลื่อนนัดหมาย
 - **กล่องกำลัง Admit**: แสดงผู้ป่วยที่กำลังรักษาตัวอยู่
-  - ปุ่ม Discharge
-- **กล่องเครื่องมือ**: สำหรับฟังก์ชันค้นหาและ Export PDF (เตรียมไว้)
+- **กล่องเครื่องมือ**: สำหรับฟังก์ชันค้นหาและ Export PDF
 - **กล่อง Links**: แสดงลิงก์ภายนอกจากฐานข้อมูล
 
 ## 🛠️ เทคโนโลยีที่ใช้
@@ -152,7 +152,6 @@ npm run lint        # Lint code
 - **React 18** - UI Framework
 - **React Router** - การจัดการ Routing
 - **Vite** - Build Tool
-- **Tailwind CSS** - Styling
 - **TH Sarabun New** - ฟอนต์ไทย
 
 ### Backend
@@ -166,10 +165,9 @@ npm run lint        # Lint code
 ## 📁 โครงสร้างโปรเจกต์
 
 ```
-chemo_ward_V2/
+CHEMO_CURSOR/
 ├── backend/
-│   ├── .env                    # Environment variables (optional)
-│   ├── env.simple             # Simple env template
+│   ├── .env                    # Environment variables
 │   ├── package.json           # Dependencies
 │   ├── prisma/
 │   │   ├── schema.prisma      # Database schema
@@ -179,8 +177,7 @@ chemo_ward_V2/
 │       ├── middlewares/       # Middleware functions
 │       └── app.js            # Main server file
 ├── frontend/
-│   ├── .env                   # Environment variables (optional)
-│   ├── env.simple            # Simple env template
+│   ├── .env                   # Environment variables
 │   ├── package.json          # Dependencies
 │   └── src/
 │       ├── components/        # Reusable components
@@ -190,8 +187,7 @@ chemo_ward_V2/
 ├── start-local.bat           # Windows startup script
 ├── start-local.sh            # Linux/Mac startup script
 ├── LOCAL_SETUP.md            # คู่มือการติดตั้งแบบละเอียด
-├── QUICK_START.md            # คู่มือการใช้งานแบบเร็ว
-└── README.md                 # คู่มือนี้
+└── README_LOCAL.md           # คู่มือนี้
 ```
 
 ## 🔧 การแก้ไขปัญหา
@@ -199,7 +195,7 @@ chemo_ward_V2/
 ### ปัญหาที่พบบ่อย
 
 1. **Port ถูกใช้งานแล้ว**
-   - เปลี่ยน PORT ในไฟล์ `backend/.env`
+   - เปลี่ยน PORT ในไฟล์ `.env` ของ backend
    - หรือปิดโปรแกรมที่ใช้ port นั้น
 
 2. **ฐานข้อมูลไม่พบ**
@@ -290,4 +286,4 @@ cd frontend && rm -rf node_modules package-lock.json && npm install
 
 ## 📄 License
 
-MIT License
+MIT License 

@@ -47,6 +47,11 @@ services:
       - DATABASE_URL=mysql://chemo_user:chemo_pass@mysql:3306/chemo_db
       - JWT_SECRET=your-super-secret-jwt-key-change-in-production
       - PORT=5000
+      - CORS_ORIGIN=http://localhost
+      - UPLOAD_PATH=./uploads
+      - MAX_FILE_SIZE=10485760
+      - LOG_LEVEL=info
+      - API_PREFIX=/api/v1
     volumes:
       - ./backend/uploads:/app/uploads
       - ./backend/logs:/app/logs
@@ -80,7 +85,14 @@ services:
     ports:
       - "80:80"
     environment:
-      - VITE_API_URL=http://localhost/api
+      - VITE_API_BASE_URL=http://localhost/api/v1
+      - VITE_API_TIMEOUT=10000
+      - VITE_APP_NAME=Chemo Management System
+      - VITE_APP_VERSION=1.0.0
+      - VITE_DEBUG_MODE=false
+      - VITE_LOG_LEVEL=info
+      - VITE_ENABLE_ANALYTICS=false
+      - VITE_ENABLE_DEBUG_PANEL=false
     depends_on:
       backend:
         condition: service_healthy
@@ -116,6 +128,11 @@ services:
       - DATABASE_URL=mysql://chemo_user:chemo_pass@mysql:3306/chemo_db
       - JWT_SECRET=dev-jwt-secret
       - PORT=5000
+      - CORS_ORIGIN=http://localhost:5173
+      - UPLOAD_PATH=./uploads
+      - MAX_FILE_SIZE=10485760
+      - LOG_LEVEL=debug
+      - API_PREFIX=/api/v1
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -145,7 +162,14 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:5001
+      - VITE_API_BASE_URL=http://localhost:5001/api/v1
+      - VITE_API_TIMEOUT=10000
+      - VITE_APP_NAME=Chemo Management System (Dev)
+      - VITE_APP_VERSION=1.0.0
+      - VITE_DEBUG_MODE=true
+      - VITE_LOG_LEVEL=debug
+      - VITE_ENABLE_ANALYTICS=false
+      - VITE_ENABLE_DEBUG_PANEL=true
     volumes:
       - ./frontend:/app
       - /app/node_modules

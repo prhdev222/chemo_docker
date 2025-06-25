@@ -9,7 +9,7 @@ const authenticateToken = (req, res, next) => {
     return res.sendStatus(401); // Unauthorized
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'YOUR_SECRET_KEY', (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET || 'chemo_management_secret_key_2024', (err, user) => {
     if (err) {
       return res.sendStatus(403); // Forbidden
     }
