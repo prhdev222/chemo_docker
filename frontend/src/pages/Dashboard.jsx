@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useContext } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import '../THSarabunNew-normal';
+import '../assets/fonts/THSarabunNew-normal.js';
 import { AuthContext } from '../context/AuthContext';
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function Dashboard() {
   const [patients, setPatients] = useState([]);
@@ -10,43 +12,120 @@ export default function Dashboard() {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const { token } = useContext(AuthContext);
 
+  // Log component mount
+  useEffect(() => {
+    console.log('🏠 Dashboard mounted');
+    console.log('🔑 Auth token available:', !!token);
+  }, []);
+
   const fetchPatients = () => {
-    if (!token) return;
-    fetch('http://localhost:3001/api/patients', {
+    if (!token) {
+      console.warn('⚠️ No token available for fetching patients');
+      return;
+    }
+    
+    console.log('📡 Fetching patients from API...');
+    fetch(`${API_URL}/api/patients`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
-      .then(data => setPatients(data.error ? [] : data));
+      .then(res => {
+        console.log('📊 Patients API response:', {
+          status: res.status,
+          statusText: res.statusText,
+          ok: res.ok
+        });
+        return res.json();
+      })
+      .then(data => {
+        if (data.error) {
+          console.error('❌ Error fetching patients:', data.error);
+          setPatients([]);
+        } else {
+          console.log('✅ Patients fetched successfully:', {
+            count: data.length,
+            patients: data.map(p => ({ hn: p.hn, name: `${p.firstName} ${p.lastName}` }))
+          });
+          setPatients(data);
+        }
+      })
+      .catch(error => {
+        console.error('💥 Error in fetchPatients:', error);
+        setPatients([]);
+      });
   };
 
   useEffect(() => {
+    console.log('🔄 Token changed, refetching patients');
     fetchPatients();
   }, [token]);
 
   // ดึงข้อมูลผู้ป่วยตาม HN
   const handleSearch = () => {
-    if (!token || !hn) return;
-    fetch(`http://localhost:3001/api/patients/${hn}`, {
+    if (!token || !hn) {
+      console.warn('⚠️ Search skipped:', { hasToken: !!token, hasHn: !!hn });
+      return;
+    }
+    
+    console.log('🔍 Searching for patient:', { hn });
+    fetch(`${API_URL}/api/patients/${hn}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
-      .then(data => setSelectedPatient(data.error ? null : data));
+      .then(res => {
+        console.log('📡 Patient search API response:', {
+          status: res.status,
+          statusText: res.statusText,
+          ok: res.ok
+        });
+        return res.json();
+      })
+      .then(data => {
+        if (data.error) {
+          console.error('❌ Patient search error:', data.error);
+          setSelectedPatient(null);
+        } else {
+          console.log('✅ Patient found:', {
+            hn: data.hn,
+            name: `${data.firstName} ${data.lastName}`,
+            diagnosis: data.diagnosis
+          });
+          setSelectedPatient(data);
+        }
+      })
+      .catch(error => {
+        console.error('💥 Error in patient search:', error);
+        setSelectedPatient(null);
+      });
   };
 
   // ฟังก์ชัน export PDF
   const exportPDF = () => {
-    const doc = new jsPDF();
-    doc.setFont('THSarabunNew');
-    doc.setFontSize(16);
-    doc.text('รายชื่อผู้ป่วย', 14, 16);
-    autoTable(doc, {
-      startY: 22,
-      head: [['HN', 'ชื่อ', 'นามสกุล', 'การวินิจฉัย']],
-      body: patients.map(p => [p.hn, p.firstName, p.lastName, p.diagnosis]),
-      styles: { font: 'THSarabunNew', fontStyle: 'normal', fontSize: 14 },
-      headStyles: { font: 'THSarabunNew', fontStyle: 'normal', fontSize: 14 }
+    console.log('📄 Exporting PDF:', {
+      patientCount: patients.length,
+      timestamp: new Date().toISOString()
     });
-    doc.save('patients.pdf');
+    
+    try {
+      const doc = new jsPDF();
+      doc.setFont('THSarabunNew');
+      doc.setFontSize(16);
+      doc.text('รายชื่อผู้ป่วย', 14, 16);
+      autoTable(doc, {
+        startY: 22,
+        head: [['HN', 'ชื่อ', 'นามสกุล', 'การวินิจฉัย']],
+        body: patients.map(p => [p.hn, p.firstName, p.lastName, p.diagnosis]),
+        styles: { font: 'THSarabunNew', fontStyle: 'normal', fontSize: 14 },
+        headStyles: { font: 'THSarabunNew', fontStyle: 'normal', fontSize: 14 }
+      });
+      doc.save('patients.pdf');
+      console.log('✅ PDF exported successfully');
+    } catch (error) {
+      console.error('💥 PDF export error:', error);
+    }
+  };
+
+  const handleHnChange = (value) => {
+    console.log('✏️ HN input changed:', { value, length: value.length });
+    setHn(value);
   };
 
   return (
@@ -55,10 +134,17 @@ export default function Dashboard() {
       <div style={{ marginBottom: 16 }}>
         <input
           value={hn}
-          onChange={e => setHn(e.target.value)}
+          onChange={e => handleHnChange(e.target.value)}
           placeholder="ค้นหา HN ผู้ป่วย"
         />
-        <button onClick={handleSearch}>ค้นหา</button>
+        <button 
+          onClick={() => {
+            console.log('🔍 Search button clicked');
+            handleSearch();
+          }}
+        >
+          ค้นหา
+        </button>
       </div>
       {selectedPatient && (
         <div style={{ border: '1px solid #ccc', padding: 16, marginBottom: 16 }}>
@@ -68,8 +154,16 @@ export default function Dashboard() {
           <div>แผนการรักษา: {JSON.stringify(selectedPatient.treatmentPlan)}</div>
         </div>
       )}
-      <h2>รายชื่อผู้ป่วยทั้งหมด</h2>
-      <button onClick={exportPDF} style={{ marginBottom: 8 }}>Export PDF</button>
+      <h2>รายชื่อผู้ป่วยทั้งหมด ({patients.length} คน)</h2>
+      <button 
+        onClick={() => {
+          console.log('📄 Export PDF button clicked');
+          exportPDF();
+        }} 
+        style={{ marginBottom: 8 }}
+      >
+        Export PDF
+      </button>
       <table border="1" cellPadding="8">
         <thead>
           <tr>

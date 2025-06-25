@@ -10,14 +10,45 @@ const Login = () => {
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  // Log component mount
+  React.useEffect(() => {
+    console.log('📱 Login page mounted');
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('📝 Login form submitted:', {
+      username: hn,
+      hasPassword: !!password,
+      passwordLength: password.length,
+      timestamp: new Date().toISOString()
+    });
+    
     setError('');
     try {
+      console.log('🔄 Starting login process...');
       await login(hn, password);
+      console.log('✅ Login successful, navigating to dashboard');
       navigate('/dashboard');
     } catch (err) {
+      console.error('❌ Login error in component:', {
+        message: err.message,
+        error: err
+      });
       setError(err.message || 'Failed to login. Please check your credentials.');
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    console.log(`✏️ Input changed - ${field}:`, {
+      value: field === 'password' ? '*'.repeat(value.length) : value,
+      length: value.length
+    });
+    
+    if (field === 'hn') {
+      setHn(value);
+    } else if (field === 'password') {
+      setPassword(value);
     }
   };
 
@@ -30,14 +61,19 @@ const Login = () => {
             <p>กรุณาลงชื่อเข้าใช้เพื่อเข้าสู่ระบบ</p>
         </div>
         <form onSubmit={handleSubmit} className="login-form">
-          {error && <p className="error-message">{error}</p>}
+          {error && (
+            <>
+              <p className="error-message">{error}</p>
+              {console.error('🚨 Login error displayed:', error)}
+            </>
+          )}
           <div className="input-group">
             <label htmlFor="hn">Username หรือ Email</label>
             <input
               type="text"
               id="hn"
               value={hn}
-              onChange={(e) => setHn(e.target.value)}
+              onChange={(e) => handleInputChange('hn', e.target.value)}
               placeholder="กรอก Username หรือ Email"
               required
             />
@@ -48,12 +84,18 @@ const Login = () => {
               type="password"
               id="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => handleInputChange('password', e.target.value)}
               placeholder="กรอกรหัสผ่าน"
               required
             />
           </div>
-          <button type="submit" className="login-button">ลงชื่อเข้าใช้</button>
+          <button 
+            type="submit" 
+            className="login-button"
+            onClick={() => console.log('🔘 Login button clicked')}
+          >
+            ลงชื่อเข้าใช้
+          </button>
         </form>
       </div>
     </div>

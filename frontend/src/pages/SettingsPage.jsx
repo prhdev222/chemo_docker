@@ -3,7 +3,7 @@ import { AuthContext } from '../context/AuthContext';
 import { FaUserPlus, FaLink, FaEdit, FaTrash, FaTimes } from 'react-icons/fa';
 import './SettingsPage.css'; // Import new CSS file
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 // --- Reusable Modal Component ---
 const Modal = ({ children, onClose, title }) => (
@@ -30,7 +30,7 @@ const UserRegistration = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch(`${API_URL}/users/register`, {
+            const response = await fetch(`${API_URL}/api/users/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
                 body: JSON.stringify(formData)
@@ -117,7 +117,7 @@ const LinkManagement = () => {
 
     const fetchLinks = async () => {
         try {
-            const response = await fetch(`${API_URL}/links`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const response = await fetch(`${API_URL}/api/links`, { headers: { 'Authorization': `Bearer ${token}` } });
             const data = await response.json();
             setLinks(Array.isArray(data) ? data : []);
         } catch (error) { console.error('Error fetching links:', error); }
@@ -126,7 +126,7 @@ const LinkManagement = () => {
     useEffect(() => { fetchLinks(); }, [token]);
 
     const handleSave = async (formData) => {
-        const url = editingLink ? `${API_URL}/links/${editingLink.id}` : `${API_URL}/links`;
+        const url = editingLink ? `${API_URL}/api/links/${editingLink.id}` : `${API_URL}/api/links`;
         const method = editingLink ? 'PUT' : 'POST';
         await fetch(url, {
             method,
@@ -139,7 +139,7 @@ const LinkManagement = () => {
 
     const handleDelete = async (id) => {
         if (window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบลิงก์นี้?')) {
-            await fetch(`${API_URL}/links/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            await fetch(`${API_URL}/api/links/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
             fetchLinks();
         }
     };

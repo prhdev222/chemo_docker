@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { FiLink, FiUsers, FiCalendar, FiEdit } from 'react-icons/fi';
+import { FiLink , FiCalendar, FiEdit } from 'react-icons/fi';
+import { FaBed } from 'react-icons/fa';
 import '../styles/dashboard.css';
 import '../styles/common.css';
 
@@ -37,8 +38,8 @@ export default function ChemoWardDashboard() {
         setLoading(true);
         try {
             const [appointmentsRes, linksRes] = await Promise.all([
-                fetch('/api/appointments', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/links', { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch(`${import.meta.env.VITE_API_URL}/api/appointments`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch(`${import.meta.env.VITE_API_URL}/api/links`, { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
             if (!appointmentsRes.ok || !linksRes.ok) {
@@ -72,7 +73,7 @@ export default function ChemoWardDashboard() {
                 body.dischargeDate = new Date().toISOString();
             }
 
-            const res = await fetch(`/api/appointments/${id}/status`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/appointments/${id}/status`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -106,7 +107,7 @@ export default function ChemoWardDashboard() {
     const handleConfirmReschedule = async () => {
         if (!selectedAppointment || !newDate) return;
         try {
-            const res = await fetch(`/api/appointments/${selectedAppointment.id}`, {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/appointments/${selectedAppointment.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -156,7 +157,7 @@ export default function ChemoWardDashboard() {
 
                 <div className="content-card">
                     <div className="card-header">
-                        <div className="card-title"><FiUsers /><h3>กำลังรักษาตัวในหอผู้ป่วย ({admittedPatients.length})</h3></div>
+                        <div className="card-title"><FaBed /><h3>กำลังรักษาตัวในหอผู้ป่วย ({admittedPatients.length})</h3></div>
                     </div>
                     <div className="card-body list-body">
                         {admittedPatients.length > 0 ? admittedPatients.map(app => (

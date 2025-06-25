@@ -4,11 +4,11 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { FaEdit, FaTrash, FaPlus, FaFilePdf, FaFileExcel, FaTimes, FaCheckCircle } from 'react-icons/fa';
-import '../THSarabunNew-normal.js';
+import '../assets/fonts/THSarabunNew-normal.js';
 import '../styles/dashboard.css';
 import '../styles/common.css';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 // --- Reusable Modal ---
 const Modal = ({ children, onClose, title }) => (
@@ -140,7 +140,7 @@ export default function AppointmentDashboard() {
     const fetchAppointments = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_URL}/appointments`, {
+            const response = await fetch(`${API_URL}/api/appointments`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!response.ok) throw new Error('Failed to fetch appointments');
@@ -155,7 +155,7 @@ export default function AppointmentDashboard() {
 
     const fetchPatients = useCallback(async () => {
         try {
-            const response = await fetch(`${API_URL}/patients`, {
+            const response = await fetch(`${API_URL}/api/patients`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!response.ok) throw new Error('Failed to fetch patients');
@@ -186,7 +186,7 @@ export default function AppointmentDashboard() {
     const handleDelete = async (id) => {
         if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบนัดหมายนี้?")) return;
         try {
-            const response = await fetch(`${API_URL}/appointments/${id}`, {
+            const response = await fetch(`${API_URL}/api/appointments/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -200,8 +200,8 @@ export default function AppointmentDashboard() {
     
     const handleSave = async (formData) => {
         const url = editingAppointment
-            ? `${API_URL}/appointments/${editingAppointment.id}`
-            : `${API_URL}/appointments`;
+            ? `${API_URL}/api/appointments/${editingAppointment.id}`
+            : `${API_URL}/api/appointments`;
         const method = editingAppointment ? 'PUT' : 'POST';
 
         // Ensure patientId is a number
@@ -231,7 +231,7 @@ export default function AppointmentDashboard() {
     const handleAdmit = async (id) => {
         if (!window.confirm("คุณต้องการ Admit ผู้ป่วยรายนี้ และนำรายการนี้ออกจากหน้าแดชบอร์ดใช่หรือไม่?")) return;
         try {
-            const response = await fetch(`${API_URL}/appointments/${id}/status`, {
+            const response = await fetch(`${API_URL}/api/appointments/${id}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ admitStatus: 'admit', admitDate: new Date().toISOString() })
@@ -261,7 +261,7 @@ export default function AppointmentDashboard() {
                 app.admitStatus
             ]),
             styles: { font: 'THSarabunNew', fontStyle: 'normal' },
-            headStyles: { fillColor: [22, 160, 133], font: 'THSarabunNew' }
+            headStyles: { font: 'THSarabunNew' }
         });
         doc.save(`appointments.pdf`);
     };

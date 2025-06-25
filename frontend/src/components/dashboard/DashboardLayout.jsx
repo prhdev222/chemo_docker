@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import { AuthContext } from '../../context/AuthContext';
 import { 
     FiUsers, FiLayout, FiFileText, FiCalendar, FiSettings, 
     FiChevronDown, FiBell, FiPlus, FiLogOut, FiBriefcase, FiBarChart2 
 } from 'react-icons/fi';
 
 // Import Pages
-import PatientManagement from '../pages/PatientManagement';
-import AppointmentDashboard from '../pages/AppointmentDashboard';
-import TreatmentPage from '../pages/TreatmentPage';
-import ChemoWardDashboard from '../pages/ChemoWardDashboard';
-import SettingsPage from '../pages/SettingsPage';
+import PatientManagement from '../../pages/PatientManagement';
+import AppointmentDashboard from '../../pages/AppointmentDashboard';
+import TreatmentPage from '../../pages/TreatmentPage';
+import ChemoWardDashboard from '../../pages/ChemoWardDashboard';
+import SettingsPage from '../../pages/SettingsPage';
 
 // Sidebar Component
 const Sidebar = ({ user, logout }) => {

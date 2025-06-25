@@ -3,10 +3,12 @@ import { AuthContext } from '../context/AuthContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import '../THSarabunNew-normal.js';
+import '../assets/fonts/THSarabunNew-normal.js';
 import '../styles/patient.css';
 import '../styles/common.css';
 import { FaPlus, FaFilePdf, FaFileExcel } from 'react-icons/fa';
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 // --- Modal Component ---
 const Modal = ({ children, onClose }) => {
@@ -194,7 +196,7 @@ export default function PatientManagement() {
     const fetchPatients = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:3001/api/patients', {
+            const response = await fetch(`${API_URL}/api/patients`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
@@ -262,8 +264,8 @@ export default function PatientManagement() {
 
     const handleSavePatient = async (formData) => {
         const url = editingPatient
-            ? `http://localhost:3001/api/patients/id/${editingPatient.id}`
-            : 'http://localhost:3001/api/patients';
+            ? `${API_URL}/api/patients/id/${editingPatient.id}`
+            : `${API_URL}/api/patients`;
         const method = editingPatient ? 'PUT' : 'POST';
 
         try {
@@ -306,7 +308,7 @@ export default function PatientManagement() {
         if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบผู้ป่วยรายนี้?')) return;
 
         try {
-            const response = await fetch(`http://localhost:3001/api/patients/id/${patientId}`, {
+            const response = await fetch(`${API_URL}/api/patients/id/${patientId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });

@@ -3,12 +3,12 @@ import { AuthContext } from '../context/AuthContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import '../THSarabunNew-normal.js';
+import '../assets/fonts/THSarabunNew-normal.js';
 import '../styles/treatment.css';
 import '../styles/common.css';
 import { FaUserMd, FaStethoscope, FaCalendarAlt, FaFileMedicalAlt, FaSearch } from 'react-icons/fa';
 
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const Modal = ({ children, onClose, title, size }) => (
     <div className="modal-overlay">
@@ -242,7 +242,7 @@ export default function TreatmentPage() {
 
     const fetchPatients = async () => {
         try {
-            const response = await fetch('http://localhost:3001/api/patients', {
+            const response = await fetch(`${API_BASE_URL}/api/patients`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
